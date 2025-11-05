@@ -1,0 +1,15 @@
+### Categoria: Performance
+- **Requisito:** [Descreva o requisito de performance. Ex: Carregamento da página X]
+- **Métrica de Validação:** [Descreva como medir. Ex: Deve carregar em menos de 3 segundos em 4G]
+
+### Categoria: Segurança
+- **Requisito:** [Descreva o requisito de segurança. Ex: Proteção contra SQL Injection]
+- **Métrica de Validação:** [Descreva como medir. Ex: Todos os inputs devem ser sanitizados via ORM]
+
+### Categoria: Usabilidade
+- **Requisito:** [Descreva o requisito de usabilidade. Ex: Acessibilidade para deficientes visuais]
+- **Métrica de Validação:** [Descreva como medir. Ex: Conformidade com o padrão WCAG 2.1 Nível AA]
+
+### Categoria: Confiabilidade
+- **Requisito:** [Descreva o requisito de confiabilidade. Ex: Uptime do serviço de API]
+- **Métrica de Validação:** [Descreva como medir. Ex: 99.9% de uptime mensal]

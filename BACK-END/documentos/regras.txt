@@ -1,0 +1,52 @@
+# Definition of Ready (DoR)
+
+Uma User Story só pode ser puxada para a Sprint se atender a todos os critérios abaixo:
+
+- Está escrita no formato padrão: **“Como [tipo de usuário], quero [ação desejada] para [benefício esperado]”**.  
+- Possui **Critérios de Aceite claros e testáveis**, definidos em formato de lista.  
+- Foi **revisada e aprovada pelo Product Owner (PO)**.  
+- Possui **estimativa de esforço** definida pela equipe de desenvolvimento.  
+- Contém **dependências identificadas e resolvidas** (ou mapeadas com responsável).  
+- Todos os **recursos necessários estão disponíveis**, incluindo APIs, acessos e ambientes.  
+- Os **mocks de design estão anexados** e validados pela equipe de UX/UI.  
+- A **descrição funcional e técnica** está completa e compreendida por todos os membros da equipe.  
+- Não há **impedimentos conhecidos** que bloqueiem o início da implementação.  
+- A Story está **priorizada no backlog** e possui **link com épico ou iniciativa** correspondente.
+
+---
+
+# Glossário de Termos de Negócio
+
+- **Cliente:** Usuário com assinatura ativa no plano **Pro**, responsável pelo pagamento da conta.  
+- **Usuário:** Qualquer pessoa registrada na plataforma, independentemente do plano (Gratuito ou Pro).  
+- **Pedido:** Conjunto completo de ações que resultam em uma **compra confirmada**.  
+- **Item do Pedido:** Produto ou serviço individual dentro de um Pedido.  
+- **Assinatura:** Contrato recorrente que gera cobranças automáticas com base em um plano ativo.  
+- **Plano Pro:** Plano pago que oferece funcionalidades avançadas, suporte prioritário e integrações extras.  
+- **Dashboard:** Tela principal onde o usuário visualiza suas métricas, histórico e status de uso da plataforma.  
+- **Administrador:** Usuário com permissões de gerenciamento total sobre contas, usuários e configurações do sistema.  
+- **Token de Acesso:** Credencial temporária usada para autenticar comunicações entre o cliente e a API.  
+- **Transação:** Registro individual de pagamento ou reembolso processado.  
+
+---
+
+# Padrão de Títulos do Jira
+
+Todos os tickets devem seguir o formato abaixo, respeitando o tipo e capitalização definidos:
+
+- **[Feature]:** [Nome da Funcionalidade]  
+  *Exemplo:* `[Feature]: Implementar Login com Google`  
+
+- **[Bug]:** [Descrição do Bug]  
+  *Exemplo:* `[Bug]: Botão de 'Comprar' não funciona no Firefox`  
+
+- **[Tech-Debt]:** [Descrição do Débito Técnico]  
+  *Exemplo:* `[Tech-Debt]: Refatorar o módulo de pagamento`  
+
+- **[Improvement]:** [Melhoria ou Otimização]  
+  *Exemplo:* `[Improvement]: Otimizar tempo de carregamento do Dashboard`  
+
+- **[Task]:** [Atividade Operacional ou de Suporte]  
+  *Exemplo:* `[Task]: Atualizar dependências do projeto para versão LTS`  
+
+Os títulos devem ser **curtos, objetivos e em português**, com a primeira letra maiúscula apenas no início da frase (exceto nomes próprios ou siglas).

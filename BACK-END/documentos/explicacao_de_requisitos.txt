@@ -1,0 +1,134 @@
+# Requisitos Funcionais (RF)
+
+## Definição
+Requisitos Funcionais descrevem **o que o sistema deve fazer**. Eles especificam **as funcionalidades, comportamentos e serviços** que o software deve fornecer aos usuários. São observáveis diretamente no funcionamento do sistema.
+
+Esses requisitos devem ser **claros, objetivos e verificáveis**, evitando ambiguidade ou interpretações múltiplas.
+
+## Boas Práticas
+- Sempre iniciar com expressões como **“O sistema deve…”** ou **“O usuário deve ser capaz de…”**.  
+- Evitar termos vagos como “adequado”, “eficiente”, “rápido” ou “intuitivo”.  
+- Especificar **ações, entradas, saídas e regras de negócio** de forma mensurável.
+
+## Exemplos de Requisitos Funcionais
+- RF01 – O sistema deve permitir que o usuário realize login informando e-mail e senha válidos.  
+- RF02 – O sistema deve enviar um e-mail de confirmação após o cadastro do usuário.  
+- RF03 – O sistema deve permitir que o administrador cadastre, edite e exclua eventos culturais.  
+- RF04 – O sistema deve exibir a lista de eventos disponíveis ordenada por data.  
+- RF05 – O sistema deve registrar a data e hora de cada tentativa de login mal-sucedida.  
+
+
+# Requisitos Não Funcionais (RNF)
+
+## Definição
+Requisitos Não Funcionais descrevem **como o sistema deve ser**. Eles não se referem a comportamentos ou funcionalidades específicas, mas sim às **qualidades, restrições e atributos** do sistema, como desempenho, segurança, usabilidade e confiabilidade.
+
+Esses requisitos influenciam diretamente a **experiência do usuário, a arquitetura e a manutenção** do sistema.
+
+## Principais Categorias
+
+- **Performance:** tempo de resposta, taxa de transferência, uso de recursos.  
+- **Segurança:** autenticação, autorização, confidencialidade, integridade, auditoria.  
+- **Usabilidade:** facilidade de uso, acessibilidade, consistência visual e de interação.  
+- **Confiabilidade:** disponibilidade, tolerância a falhas, recuperação.  
+- **Manutenibilidade:** facilidade de correção, extensão e atualização do sistema.  
+- **Portabilidade:** capacidade de rodar em diferentes ambientes e plataformas.  
+- **Compatibilidade:** integração com outros sistemas ou versões anteriores.
+
+## Exemplos de RNFs Ruins vs. Bons
+
+| Tipo | Exemplo Ruim | Exemplo Bom |
+|------|---------------|-------------|
+| Performance | “O sistema deve ser rápido.” | “A página de login deve carregar em até 2 segundos em uma conexão 4G.” |
+| Segurança | “O sistema deve ser seguro.” | “As senhas devem ser armazenadas com hash SHA-256 e sal aleatório.” |
+| Usabilidade | “A interface deve ser intuitiva.” | “O sistema deve seguir as diretrizes de acessibilidade WCAG 2.1 nível AA.” |
+| Confiabilidade | “O sistema não deve falhar.” | “O sistema deve ter disponibilidade mínima de 99,5% por mês.” |
+| Manutenibilidade | “O código deve ser fácil de manter.” | “O código deve seguir o padrão de estilo PEP8 e conter testes unitários para 80% das funções.” |
+
+
+# Histórias de Usuário (User Stories)
+
+## Definição
+Histórias de Usuário são **descrições simples e curtas** de uma funcionalidade, escritas do ponto de vista do usuário final. Elas ajudam a capturar **quem é o usuário**, **o que ele precisa** e **por que ele precisa** disso.
+
+## Estrutura Padrão
+> **Como um [tipo de usuário]**,  
+> **Eu quero [ação ou funcionalidade]**,  
+> **Para que [benefício ou valor agregado]**.
+
+### Propósito de Cada Parte
+- **Persona (Como um...)** – Identifica quem é o usuário e o contexto de uso.  
+- **Ação (Eu quero...)** – Descreve a funcionalidade desejada.  
+- **Benefício (Para que...)** – Explica o valor ou propósito dessa funcionalidade.
+
+## Exemplos
+- Como um **usuário cadastrado**, eu quero **recuperar minha senha esquecida**, para que **eu possa acessar minha conta novamente**.  
+- Como um **administrador**, eu quero **gerar relatórios de eventos realizados**, para que **eu possa analisar o desempenho mensal do sistema**.  
+- Como um **visitante**, eu quero **visualizar a lista de eventos culturais disponíveis**, para que **eu possa decidir qual participar**.
+
+
+# O Acrônimo INVEST
+
+O acrônimo **INVEST** define seis critérios fundamentais para avaliar a qualidade de uma História de Usuário.
+
+| Letra | Significado | Descrição |
+|--------|-------------|-----------|
+| **I** | **Independente** | A história deve ser implementável e testável sem depender de outras histórias. |
+| **N** | **Negociável** | A história deve ser flexível, permitindo discussões e ajustes entre equipe e stakeholders. |
+| **V** | **Valiosa** | A entrega da história deve gerar valor para o usuário ou para o negócio. |
+| **E** | **Estimável** | Deve ser possível estimar o esforço necessário para implementá-la. |
+| **S** | **Small (Pequena)** | Deve ser pequena o suficiente para ser desenvolvida em uma única iteração (sprint). |
+| **T** | **Testável** | Deve ser possível verificar objetivamente se a história foi entregue conforme esperado. |
+
+## Importância do INVEST
+- **Independência** reduz bloqueios entre tarefas.  
+- **Negociação** favorece colaboração e adaptação.  
+- **Valor** garante foco nas necessidades reais.  
+- **Estimabilidade** permite melhor planejamento das sprints.  
+- **Pequenez** evita histórias complexas demais.  
+- **Testabilidade** assegura verificabilidade objetiva dos resultados.  
+
+
+# Critérios de Aceite (ACs)
+
+## Definição
+Critérios de Aceite são **condições específicas e verificáveis** que determinam quando uma História de Usuário está **completa e aceita**. Eles orientam o desenvolvimento e a validação da funcionalidade, garantindo alinhamento entre equipe e stakeholders.
+
+## Importância
+- Servem como base para **testes de aceitação**.  
+- Evitam **interpretações ambíguas** sobre o que é considerado “feito”.  
+- Garantem **clareza e rastreabilidade** do comportamento esperado.
+
+## Boas Práticas
+- Usar o formato **“Dado... Quando... Então...”**, inspirado em BDD (Behavior-Driven Development).  
+- Ser **objetivo, mensurável e verificável**.  
+- Evitar incluir múltiplos comportamentos em um único critério.  
+- Garantir que cada AC esteja **diretamente vinculado à User Story**.  
+
+## Exemplo de História de Usuário
+> **Como um usuário registrado, eu quero fazer login no sistema para acessar minha conta.**
+
+### Critérios de Aceite (ACs)
+1. **Dado** que o usuário possui um cadastro válido,  
+   **Quando** ele informar e-mail e senha corretos,  
+   **Então** ele deve ser redirecionado para a página inicial.
+
+2. **Dado** que o usuário informar credenciais inválidas,  
+   **Quando** ele tentar realizar login,  
+   **Então** o sistema deve exibir uma mensagem de erro informando “E-mail ou senha incorretos”.
+
+3. **Dado** que o usuário esqueceu a senha,  
+   **Quando** ele clicar em “Esqueci minha senha”,  
+   **Então** o sistema deve exibir a tela de recuperação de senha.
+
+4. **Dado** que o servidor esteja temporariamente indisponível,  
+   **Quando** o usuário tentar fazer login,  
+   **Então** o sistema deve exibir a mensagem “Serviço indisponível, tente novamente mais tarde”.
+
+5. **Dado** que o usuário insira a senha errada mais de 5 vezes consecutivas,  
+   **Quando** ele tentar novamente,  
+   **Então** o sistema deve bloquear temporariamente o login e enviar um e-mail de alerta.
+
+---
+
+Esse guia estabelece uma base sólida para a **definição, escrita e validação de requisitos de software**, alinhando clareza técnica e valor de negócio conforme as boas práticas da engenharia de software e metodologias ágeis.

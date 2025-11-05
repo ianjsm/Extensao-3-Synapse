@@ -1,0 +1,15 @@
+
+# Arquivos de ambiente virtual
+venv/
+venv39/
+
+# Banco de dados vetorial local
+chroma_db/
+
+# Arquivo de segredos
+.env
+
+# Arquivos de cache do Python
+__pycache__/
+*.pyc
+

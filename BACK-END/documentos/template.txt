@@ -1,0 +1,12 @@
+**Como um:** [Tipo de Usuário]  
+**Eu quero:** [Fazer uma ação/Objetivo]  
+**Para que:** [Eu possa obter um benefício/Valor]  
+
+**Critérios de Aceite:**  
+- **Dado** [Contexto inicial], **Quando** [Ação do usuário], **Então** [Resultado esperado].  
+- **Dado** [Outro contexto], **Quando** [Outra ação], **Então** [Outro resultado].  
+- [Critério adicional 1]  
+- [Critério adicional 2]  
+
+**Notas / Requisitos Técnicos:**  
+- [Informação técnica relevante ou regra de negócio]  

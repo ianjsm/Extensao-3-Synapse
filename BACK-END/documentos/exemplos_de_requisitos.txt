@@ -1,0 +1,217 @@
+**Como um:** usuário registrado  
+**Eu quero:** fazer login no sistema utilizando meu e-mail e senha  
+**Para que:** eu possa acessar minha conta e utilizar as funcionalidades disponíveis  
+
+**Critérios de Aceite:**  
+1. Dado que o usuário informe e-mail e senha válidos, quando clicar em “Entrar”, então deve ser redirecionado para o painel principal.  
+2. Dado que o usuário informe credenciais incorretas, quando tentar fazer login, então o sistema deve exibir a mensagem “E-mail ou senha incorretos”.  
+3. Dado que o usuário esqueça sua senha, quando clicar em “Esqueci minha senha”, então o sistema deve redirecionar para a página de recuperação.  
+
+---
+
+**Como um:** novo usuário  
+**Eu quero:** criar uma conta informando meus dados pessoais  
+**Para que:** eu possa acessar o sistema e personalizar minha experiência  
+
+**Critérios de Aceite:**  
+1. Dado que o usuário preencha todos os campos obrigatórios, quando clicar em “Cadastrar”, então a conta deve ser criada com sucesso.  
+2. Dado que o usuário informe um e-mail já cadastrado, quando tentar se registrar, então o sistema deve exibir a mensagem “E-mail já em uso”.  
+3. Dado que o cadastro seja concluído, quando o sistema confirmar, então um e-mail de boas-vindas deve ser enviado automaticamente.  
+
+---
+
+**Como um:** usuário autenticado  
+**Eu quero:** redefinir minha senha esquecida  
+**Para que:** eu possa recuperar o acesso à minha conta com segurança  
+
+**Critérios de Aceite:**  
+1. Dado que o usuário informe um e-mail válido, quando clicar em “Enviar link de recuperação”, então o sistema deve enviar um e-mail com o link de redefinição.  
+2. Dado que o usuário acesse o link, quando definir uma nova senha, então a senha deve ser atualizada imediatamente.  
+3. Dado que o link de recuperação expire, quando o usuário tentar utilizá-lo, então o sistema deve exibir uma mensagem informando que o link não é mais válido.  
+
+---
+
+**Como um:** usuário autenticado  
+**Eu quero:** editar minhas informações de perfil  
+**Para que:** eu possa manter meus dados pessoais atualizados  
+
+**Critérios de Aceite:**  
+1. Dado que o usuário acesse a página de perfil, quando editar o nome e o telefone, então as alterações devem ser salvas com sucesso.  
+2. Dado que o usuário deixe campos obrigatórios em branco, quando tentar salvar, então o sistema deve exibir uma mensagem de erro.  
+3. Dado que a atualização seja feita com sucesso, quando o usuário retornar à tela de perfil, então as informações devem aparecer atualizadas.  
+
+---
+
+**Como um:** usuário autenticado  
+**Eu quero:** alterar minha foto de perfil  
+**Para que:** minha conta fique mais personalizada  
+
+**Critérios de Aceite:**  
+1. Dado que o usuário selecione uma imagem válida, quando clicar em “Salvar”, então a foto de perfil deve ser atualizada.  
+2. Dado que o usuário envie um arquivo em formato inválido, quando tentar salvar, então o sistema deve exibir a mensagem “Formato não suportado”.  
+3. Dado que a imagem seja alterada, quando o usuário acessar o perfil novamente, então a nova foto deve ser exibida.  
+
+---
+
+**Como um:** visitante  
+**Eu quero:** buscar produtos pelo nome ou categoria  
+**Para que:** eu possa encontrar o item que desejo comprar rapidamente  
+
+**Critérios de Aceite:**  
+1. Dado que o usuário digite um termo de busca válido, quando pressionar “Enter”, então o sistema deve exibir os produtos correspondentes.  
+2. Dado que não existam resultados, quando a busca for realizada, então o sistema deve exibir a mensagem “Nenhum produto encontrado”.  
+3. Dado que o usuário filtre por categoria, quando aplicar o filtro, então os resultados devem ser atualizados dinamicamente.  
+
+---
+
+**Como um:** comprador  
+**Eu quero:** adicionar um produto ao meu carrinho  
+**Para que:** eu possa finalizar a compra posteriormente  
+
+**Critérios de Aceite:**  
+1. Dado que o produto esteja disponível em estoque, quando o usuário clicar em “Adicionar ao carrinho”, então o item deve ser adicionado com sucesso.  
+2. Dado que o produto já esteja no carrinho, quando o usuário tentar adicioná-lo novamente, então a quantidade deve ser incrementada.  
+3. Dado que o item seja adicionado, quando o usuário acessar o carrinho, então ele deve aparecer na lista de produtos.  
+
+---
+
+**Como um:** comprador  
+**Eu quero:** visualizar o conteúdo do meu carrinho  
+**Para que:** eu possa revisar os itens antes de finalizar a compra  
+
+**Critérios de Aceite:**  
+1. Dado que existam itens no carrinho, quando o usuário acessar a página de carrinho, então todos os produtos adicionados devem ser listados.  
+2. Dado que o usuário altere a quantidade de um item, quando confirmar, então o valor total deve ser atualizado automaticamente.  
+3. Dado que o carrinho esteja vazio, quando acessado, então o sistema deve exibir a mensagem “Seu carrinho está vazio”.  
+
+---
+
+**Como um:** comprador  
+**Eu quero:** realizar o checkout dos produtos no carrinho  
+**Para que:** eu possa concluir a compra e efetuar o pagamento  
+
+**Critérios de Aceite:**  
+1. Dado que o usuário tenha itens no carrinho, quando clicar em “Finalizar compra”, então o sistema deve exibir o resumo do pedido.  
+2. Dado que o usuário selecione um método de pagamento válido, quando confirmar, então a transação deve ser processada.  
+3. Dado que o pagamento seja aprovado, quando a compra for concluída, então o sistema deve exibir uma página de confirmação e enviar um e-mail com o recibo.  
+
+---
+
+**Como um:** comprador  
+**Eu quero:** favoritar produtos que gostei  
+**Para que:** eu possa acessá-los facilmente depois  
+
+**Critérios de Aceite:**  
+1. Dado que o usuário esteja logado, quando clicar no ícone de favorito, então o produto deve ser salvo na lista de favoritos.  
+2. Dado que o produto já esteja favoritado, quando o usuário clicar novamente, então ele deve ser removido da lista.  
+3. Dado que o usuário acesse sua lista de favoritos, quando abrir a página, então todos os produtos salvos devem ser exibidos.  
+
+---
+
+**Como um:** administrador  
+**Eu quero:** visualizar relatórios de vendas por período  
+**Para que:** eu possa acompanhar o desempenho financeiro da loja  
+
+**Critérios de Aceite:**  
+1. Dado que o administrador selecione um intervalo de datas, quando gerar o relatório, então o sistema deve exibir os dados de vendas correspondentes.  
+2. Dado que não existam vendas no período, quando o relatório for solicitado, então o sistema deve exibir a mensagem “Nenhum dado encontrado”.  
+3. Dado que o relatório seja gerado, quando o administrador clicar em “Exportar”, então o arquivo deve ser baixado em formato CSV.  
+
+---
+
+**Como um:** administrador  
+**Eu quero:** gerenciar contas de usuários  
+**Para que:** eu possa manter o controle de acessos do sistema  
+
+**Critérios de Aceite:**  
+1. Dado que o administrador acesse a lista de usuários, quando clicar em “Editar”, então o sistema deve permitir atualizar dados do usuário.  
+2. Dado que o administrador queira desativar uma conta, quando confirmar a ação, então o usuário deve perder acesso ao sistema.  
+3. Dado que uma conta seja alterada, quando a atualização for concluída, então o sistema deve registrar a modificação no log de auditoria.  
+
+---
+
+**Como um:** moderador  
+**Eu quero:** aprovar ou rejeitar comentários de usuários  
+**Para que:** eu possa manter o conteúdo da plataforma apropriado  
+
+**Critérios de Aceite:**  
+1. Dado que um comentário esteja pendente, quando o moderador clicar em “Aprovar”, então o comentário deve se tornar público.  
+2. Dado que o moderador clique em “Rejeitar”, quando confirmar, então o comentário deve ser removido da fila.  
+3. Dado que uma ação seja tomada, quando finalizada, então o sistema deve registrar o usuário e horário da moderação.  
+
+---
+
+**Como um:** administrador  
+**Eu quero:** configurar permissões de acesso por perfil  
+**Para que:** eu possa controlar quais usuários podem executar determinadas ações  
+
+**Critérios de Aceite:**  
+1. Dado que o administrador selecione um perfil, quando alterar suas permissões, então o sistema deve aplicar as novas regras imediatamente.  
+2. Dado que o administrador remova um privilégio, quando um usuário tentar acessá-lo, então o sistema deve negar o acesso.  
+3. Dado que uma permissão seja modificada, quando salvar, então o sistema deve registrar o evento em log de auditoria.  
+
+---
+
+**Como um:** usuário autenticado  
+**Eu quero:** receber notificações sobre atividades da minha conta  
+**Para que:** eu possa acompanhar atualizações importantes  
+
+**Critérios de Aceite:**  
+1. Dado que uma nova atividade ocorra (ex: compra, atualização de perfil), quando o evento for registrado, então o usuário deve receber uma notificação.  
+2. Dado que o usuário desative notificações, quando ocorrer um evento, então nenhuma mensagem deve ser enviada.  
+3. Dado que o usuário abra uma notificação, quando visualizá-la, então ela deve ser marcada como lida.  
+
+---
+
+**Como um:** cliente  
+**Eu quero:** avaliar produtos comprados  
+**Para que:** eu possa compartilhar minha experiência com outros usuários  
+
+**Critérios de Aceite:**  
+1. Dado que o usuário tenha comprado um produto, quando acessar a página do item, então o botão “Avaliar” deve estar disponível.  
+2. Dado que o usuário envie uma avaliação, quando clicar em “Publicar”, então o comentário deve aparecer na seção de avaliações.  
+3. Dado que o usuário envie uma nota de 1 a 5 estrelas, quando publicada, então a média do produto deve ser recalculada.  
+
+---
+
+**Como um:** administrador  
+**Eu quero:** visualizar logs de atividade do sistema  
+**Para que:** eu possa auditar ações executadas pelos usuários  
+
+**Critérios de Aceite:**  
+1. Dado que o administrador acesse a tela de auditoria, quando filtrar por data, então o sistema deve exibir apenas os registros correspondentes.  
+2. Dado que o administrador exporte o log, quando clicar em “Exportar CSV”, então o arquivo deve ser baixado corretamente.  
+3. Dado que não existam registros no período, quando a busca for realizada, então o sistema deve exibir a mensagem “Nenhum log encontrado”.  
+
+---
+
+**Como um:** usuário autenticado  
+**Eu quero:** visualizar o histórico das minhas compras  
+**Para que:** eu possa acompanhar meus pedidos anteriores  
+
+**Critérios de Aceite:**  
+1. Dado que o usuário tenha realizado compras, quando acessar o menu “Histórico”, então a lista de pedidos deve ser exibida.  
+2. Dado que o usuário clique em um pedido, quando selecionar, então os detalhes completos devem ser exibidos.  
+3. Dado que não haja compras, quando o usuário acessar o histórico, então deve ser exibida a mensagem “Nenhum pedido encontrado”.  
+
+---
+
+**Como um:** usuário  
+**Eu quero:** receber confirmação por e-mail após o cadastro  
+**Para que:** eu possa validar minha conta e garantir a segurança do acesso  
+
+**Critérios de Aceite:**  
+1. Dado que o usuário finalize o cadastro, quando o processo for concluído, então o sistema deve enviar um e-mail de confirmação.  
+2. Dado que o usuário clique no link de confirmação, quando acessar, então sua conta deve ser ativada.  
+3. Dado que o link expire após 24 horas, quando o usuário tentar acessá-lo, então o sistema deve exibir uma mensagem de link expirado.  
+
+---
+
+**Como um:** administrador  
+**Eu quero:** configurar parâmetros gerais do sistema  
+**Para que:** eu possa ajustar o comportamento da aplicação conforme as políticas da empresa  
+
+**Critérios de Aceite:**  
+1. Dado que o administrador altere um parâmetro, quando clicar em “Salvar”, então o sistema deve aplicar a configuração imediatamente.  
+2. Dado que o administrador insira valores inválidos, quando tentar salvar, então o sistema deve impedir a ação e exibir uma mensagem de erro.  
+3. Dado que as configurações sejam salvas com sucesso, quando o sistema reiniciar, então os valores devem ser mantidos.  
