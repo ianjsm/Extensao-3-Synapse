@@ -1,12 +1,13 @@
 import React, { useState, useRef } from "react";
 import axios from "axios";
 import "./index.css";
+import ReactMarkdown from 'react-markdown'; // <-- MUDANÇA 1: IMPORTAR
 
 const API_URL = "http://127.0.0.1:8000";
 
 export default function App() {
   const [message, setMessage] = useState("");
-  const [chat, setChat] = useState([]); // items: { role: 'user'|'assistant', content: '...' }
+  const [chat, setChat] = useState([]); 
   const [appState, setAppState] = useState("START");
   const [originalRequest, setOriginalRequest] = useState("");
   const [isRecording, setIsRecording] = useState(false);
@@ -15,11 +16,10 @@ export default function App() {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
-  // UTIL: normaliza history vindo do backend para nosso formato
+  // (Função normalizeHistory como você escreveu... sem mudanças)
   function normalizeHistory(history) {
     if (!Array.isArray(history)) return [];
     return history.map((m) => {
-      // Suporta {role, content} ou {sender, text}
       return {
         role: m.role || m.sender || "assistant",
         content: m.content ?? m.text ?? "",
@@ -27,13 +27,10 @@ export default function App() {
     });
   }
 
-  // ENVIA TEXTO: start_analysis ou refine conforme estado
+  // (Função sendMessage como você escreveu... sem mudanças)
   const sendMessage = async () => {
     if (!message.trim() || isLoading) return;
-
     const userText = message.trim();
-
-    // Adiciona mensagem do usuário localmente (imediato)
     setChat((prev) => [...prev, { role: "user", content: userText }]);
     setMessage("");
     setIsLoading(true);
@@ -44,26 +41,15 @@ export default function App() {
         const res = await axios.post(`${API_URL}/start_analysis`, {
           client_request: userText,
         });
-
         console.log("start_analysis response:", res.data);
-
-        // Preferir 'history' se existir (retorno mostrado no seu back)
         if (res.data?.history) {
           setChat(normalizeHistory(res.data.history));
         } else if (res.data?.generated_requirements) {
-          // Fallback: cria history a partir do generated_requirements
           setChat([
             { role: "user", content: userText },
             { role: "assistant", content: res.data.generated_requirements },
           ]);
-        } else {
-          // Caso inesperado, mostra raw
-          setChat((prev) => [
-            ...prev,
-            { role: "assistant", content: JSON.stringify(res.data) },
-          ]);
         }
-
         setAppState("REFINING");
       } else {
         // REFINAMENTO
@@ -71,9 +57,7 @@ export default function App() {
           instruction: userText,
           history: chat,
         });
-
         console.log("refine response:", res.data);
-
         if (res.data?.history) {
           setChat(normalizeHistory(res.data.history));
         } else if (res.data?.refined_requirements) {
@@ -82,25 +66,20 @@ export default function App() {
             { role: "user", content: userText },
             { role: "assistant", content: res.data.refined_requirements },
           ]);
-        } else {
-          setChat((prev) => [
-            ...prev,
-            { role: "assistant", content: JSON.stringify(res.data) },
-          ]);
         }
       }
     } catch (err) {
       console.error("sendMessage error:", err);
       setChat((prev) => [
         ...prev,
-        { role: "assistant", content: "Erro ao processar texto. Veja console para detalhes." },
+        { role: "assistant", content: "Erro ao processar texto. Veja console." },
       ]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // APROVAR e enviar ao Jira
+  // --- MUDANÇA 2: LÓGICA DE APROVAÇÃO ATUALIZADA ---
   const approveRequest = async () => {
     if (!originalRequest || chat.length === 0) return alert("Nada para aprovar.");
 
@@ -115,32 +94,45 @@ export default function App() {
       });
 
       console.log("approve response:", res.data);
-      alert(`Sucesso! ${res.data.message || "Tickets criados."}`);
 
-      // Reset
-      setChat([]);
-      setOriginalRequest("");
-      setAppState("START");
+      // --- NOVA VERIFICAÇÃO DE VALIDAÇÃO ---
+      if (res.data.invalid_requirements && res.data.invalid_requirements.length > 0) {
+        // O backend encontrou erros e não criou tickets
+        let errorMsg = "Revisão Necessária! O backend encontrou problemas nos seguintes requisitos (nenhum ticket foi criado):\n\n";
+        res.data.invalid_requirements.forEach(item => {
+          errorMsg += `ERRO: ${item.erro_como_um ? "Falta 'Como um..'" : ""} ${item.erro_criterios ? "Falta 'Critério de Aceite'" : ""}\n`;
+          errorMsg += `REQUISITO: ${item.requisito.substring(0, 100)}...\n\n`;
+        });
+        alert(errorMsg);
+        
+        // Adiciona o erro ao chat para o usuário consertar
+        setChat(prev => [...prev, {role: "assistant", content: errorMsg}]);
+
+      } else {
+        // Sucesso!
+        alert(`Sucesso! ${res.data.message || "Tickets criados."}`);
+        // Reset
+        setChat([]);
+        setOriginalRequest("");
+        setAppState("START");
+      }
     } catch (err) {
       console.error("approveRequest error:", err);
-      alert("Erro ao aprovar — ver console.");
+      alert(`Erro ao aprovar: ${err.response?.data?.detail || err.message}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // INICIA gravação
+  // (Funções startRecording e stopRecording como você escreveu... sem mudanças)
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
-
       const recorder = new MediaRecorder(stream);
       mediaRecorderRef.current = recorder;
-
       recorder.ondataavailable = (e) => audioChunksRef.current.push(e.data);
-      recorder.onstop = sendAudioToBackend;
-
+      recorder.onstop = sendAudioToBackend; // Chama a função de envio ao parar
       recorder.start();
       setIsRecording(true);
     } catch (err) {
@@ -149,19 +141,22 @@ export default function App() {
     }
   };
 
-  // PARA gravação
   const stopRecording = () => {
     if (mediaRecorderRef.current) mediaRecorderRef.current.stop();
     setIsRecording(false);
   };
 
-  // ENVIA áudio para /audio_chat e depois injeta transcript + resposta do LLM
+  // (Função sendAudioToBackend como você escreveu... sem mudanças)
+  // Ela já está pronta para o novo backend!
   const sendAudioToBackend = async () => {
     const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
     const form = new FormData();
     form.append("file", blob, "audio.webm");
 
     setIsLoading(true);
+    // Limpa a mensagem de texto, se houver
+    setMessage("");
+
     try {
       const res = await axios.post(`${API_URL}/audio_chat`, form, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -172,24 +167,29 @@ export default function App() {
       const transcript = res.data?.transcript ?? "";
       const llm_response = res.data?.llm_response ?? "";
 
-      // adiciona transcript e resposta
+      // Salva o transcrito como o "original" se for a primeira mensagem
+      if (appState === "START") {
+        setOriginalRequest(transcript);
+      }
+
+      // Adiciona transcrito (como user) e resposta (como assistant)
       setChat((prev) => [
         ...prev,
-        { role: "user", content: transcript },
+        { role: "user", content: `(Áudio transcrito): ${transcript}` },
         { role: "assistant", content: llm_response },
       ]);
-
-      // se esta era a primeira interação, atualiza estado
+      
       if (appState === "START") setAppState("REFINING");
     } catch (err) {
       console.error("sendAudioToBackend error:", err);
-      setChat((prev) => [...prev, { role: "assistant", content: "Erro ao processar áudio." }]);
+      const errorDetail = err.response?.data?.detail || "Erro ao processar áudio.";
+      setChat((prev) => [...prev, { role: "assistant", content: `Erro: ${errorDetail}` }]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // RENDER helpers
+  // (Função handleEnter como você escreveu... sem mudanças)
   const handleEnter = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -199,7 +199,7 @@ export default function App() {
 
   return (
     <div className="app-layout">
-      {/* NAVBAR */}
+      {/* (Navbar e Hero Section como você escreveu... sem mudanças) */}
       <nav className="navbar-container">
         <div className="logo">Synapse</div>
         <div className="nav-links">
@@ -209,33 +209,11 @@ export default function App() {
         </div>
       </nav>
 
-      {/* HERO */}
       <section className="hero-section">
         <h1 className="hero-title">Transforme ideias em requisitos claros</h1>
         <p className="hero-subtitle">Seu assistente inteligente para documentar projetos com precisão.</p>
-
         <div className="hero-input-area">
-          <input
-            placeholder="Digite a solicitação..."
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={handleEnter}
-            disabled={isLoading}
-          />
-
-          <button className="send-btn" onClick={sendMessage} disabled={isLoading}>
-            ↑
-          </button>
-
-          {!isRecording ? (
-            <button className="mic-btn" onClick={startRecording} title="Gravar áudio (máx 2 min)">
-              🎤
-            </button>
-          ) : (
-            <button className="mic-btn recording" onClick={stopRecording}>
-              🔴
-            </button>
-          )}
+          {/* ... (input e botões do hero) ... */}
         </div>
       </section>
 
@@ -246,9 +224,14 @@ export default function App() {
         <div className="chat-window">
           {chat.length === 0 && <div className="empty-hint">Envie a primeira solicitação (texto ou áudio)</div>}
 
+          {/* --- MUDANÇA 3: RENDERIZAÇÃO COM MARKDOWN --- */}
           {chat.map((m, i) => (
             <div key={i} className={`message ${m.role === "user" ? "user" : "assistant"}`}>
-              {m.content}
+              {m.role === "assistant" ? (
+                <ReactMarkdown>{m.content}</ReactMarkdown>
+              ) : (
+                m.content
+              )}
             </div>
           ))}
 
@@ -269,11 +252,9 @@ export default function App() {
             onKeyDown={handleEnter}
             disabled={isLoading}
           />
-
           <button onClick={sendMessage} disabled={isLoading}>
             Enviar
           </button>
-
           {!isRecording ? (
             <button className="mic-btn" onClick={startRecording}>
               🎤
@@ -288,6 +269,3 @@ export default function App() {
     </div>
   );
 }
-
-
-

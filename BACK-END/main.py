@@ -17,6 +17,17 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 from functools import lru_cache
 from pathlib import Path
+import logging
+import sys
+
+logger = logging.getLogger("assistente-rag")
+logger.setLevel(logging.INFO)
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+if not logger.hasHandlers():
+    logger.addHandler(handler)
 
 # --- Importações Langchain (conforme seu ambiente atual) ---
 from langchain_chroma import Chroma
@@ -61,11 +72,16 @@ if not all([JIRA_URL, JIRA_USERNAME, JIRA_API_TOKEN, JIRA_PROJECT_KEY]):
 # --- Prompts ---
 PROMPT_ANALISTA_OCULTO_TEMPLATE = """
 Sua tarefa é atuar como um Analista de Requisitos Sênior. 
-Com base no contexto (documentos de template e exemplos) e na solicitação do cliente abaixo, gere uma lista detalhada de Requisitos Funcionais como User Stories (formato "Como um...", "Eu quero...", "Para que...") com Critérios de Aceite.
+Com base no contexto (documentos de template e exemplos) e na solicitação do cliente abaixo, gere uma lista de Requisitos Funcionais como User Stories.
+
+**REGRAS ESTRITAS DE FORMATAÇÃO:**
+1.  **NÃO** inclua nenhum título, cabeçalho, introdução ou texto de conclusão. Sua resposta deve começar IMEDIATAMENTE com o primeiro "**Como um:**".
+2.  Cada User Story DEVE seguir o formato: "**Como um:**...", "**Eu quero:**...", "**Para que:**...".
+3.  CADA User Story DEVE ter uma seção "**Critérios de Aceite:**" com pelo menos 2 critérios.
+
 ---
 Solicitação do Cliente: "{solicitacao_cliente}"
 ---
-Requisitos Gerados:
 """
 
 RAG_TEMPLATE = """
@@ -84,8 +100,12 @@ Histórico da conversa:
 ---
 Nova instrução do usuário: {instruction}
 ---
-Com base no histórico e na nova instrução, refine a última resposta do assistente ou adicione o que foi pedido.
-Responda apenas com a lista de requisitos atualizada e formatada corretamente no formato User Story.
+Com base no histórico e na nova instrução, refine a última resposta do assistente.
+
+**REGRAS ESTRITAS DE FORMATAÇÃO (APLIQUE NOVAMENTE):**
+1.  **NÃO** inclua nenhum título, cabeçalho, introdução ou texto de conclusão. Sua resposta deve começar IMEDIATAMENTE com o primeiro "**Como um:**".
+2.  Cada User Story DEVE seguir o formato: "**Como um:**...", "**Eu quero:**...", "**Para que:**...".
+3.  CADA User Story DEVE ter uma seção "**Critérios de Aceite:**" com pelo menos 2 critérios.
 """
 
 # --- Globals (inicializados na startup) ---
@@ -106,6 +126,34 @@ def get_jira_client_cached() -> JIRA:
     """Retorna um cliente JIRA (cacheado) — criação rápida e reutilizável."""
     logger.info("Criando cliente JIRA (cacheado).")
     return JIRA(server=JIRA_URL, basic_auth=(JIRA_USERNAME, JIRA_API_TOKEN))
+
+def formatar_para_jira(texto_md: str) -> str:
+    """
+    Traduz uma string de Markdown simples para o formato Jira Wiki Markup.
+    """
+    if not texto_md:
+        return ""
+
+    texto_jira = texto_md
+
+    # 1. Títulos: Converte "## Título" para "h2. Título"
+    texto_jira = re.sub(r"^\s*##\s*(.*)", r"h2. \1", texto_jira, flags=re.MULTILINE)
+
+    # 2. Negrito: Converte "**texto**" para "*texto*"
+    # (Usando ._? para ser "não-ganancioso" e pegar o par correto)
+    texto_jira = re.sub(r"\*\*(.*?)\*\*", r"*\1*", texto_jira)
+
+    # 3. Listas Numeradas: Converte "1. item" para "# item"
+    texto_jira = re.sub(r"^\s*(\d+)\.\s+", r"# ", texto_jira, flags=re.MULTILINE)
+
+    # 4. Linhas Horizontais: Converte "---" para "----"
+    texto_jira = re.sub(r"^\s*---\s*$", r"----", texto_jira, flags=re.MULTILINE)
+
+    # 5. (Opcional) Itálico: Converte "*texto*" para "_texto_"
+    # Vamos converter os itálicos do LLM em negrito do Jira para destaque
+    texto_jira = re.sub(r"\*(.*?)\*", r"*\1*", texto_jira) 
+
+    return texto_jira.strip()
 
 def create_jira_issue_sync(issue_dict: dict) -> Tuple[Optional[str], Optional[str]]:
     """
