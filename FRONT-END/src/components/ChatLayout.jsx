@@ -4,7 +4,14 @@ export default function ChatLayout({ children }) {
       <header className="px-6 py-4 border-b bg-[#002A5E] text-white text-lg font-semibold text-center">
         Assistente de Requisitos
       </header>
-      <main className="flex-1 overflow-y-auto p-6 bg-gray-50">{children}</main>
+      <main className="flex-1 overflow-y-auto p-6 bg-gray-50">
+        {children || (
+          <p className="text-gray-500 text-center mt-10">
+            Nenhum chat disponível. Entre para começar a usar o assistente.
+          </p>
+        )}
+      </main>
     </div>
   );
 }
+

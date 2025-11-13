@@ -1,15 +1,43 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 export default function Register() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
-  const handle = (e) => {
+  const handle = async (e) => {
     e.preventDefault();
-    alert("Registro teórico — implemente endpoint de criação quando pronto.");
-  };
+
+    if (!name || !email || !pass) {
+      alert("Preencha todos os campos.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+    const res = await fetch("http://127.0.0.1:8000/cadastro", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, password: pass })
+    });;
+
+    const data = await res.json();
+    if (!res.ok) {
+      alert("Erro: " + JSON.stringify(data));
+      return;
+    }
+
+    alert("Conta criada com sucesso!");
+  } catch (err) {
+    console.error(err);
+    alert("Erro ao conectar com o servidor.");
+  } finally {
+      setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#001a33] via-[#003366] to-[#004b8d]">
@@ -60,9 +88,12 @@ export default function Register() {
 
           <button
             type="submit"
-            className="w-full py-3 rounded-lg bg-[#0057B8] hover:bg-[#00449A] text-white font-semibold transition-all duration-200 shadow-md"
+            disabled={loading}
+            className={`w-full py-3 rounded-lg text-white font-semibold transition-all duration-200 shadow-md ${
+              loading ? "bg-gray-400 cursor-not-allowed" : "bg-[#0057B8] hover:bg-[#00449A]"
+            }`}
           >
-            Registrar
+            {loading ? "Registrando..." : "Registrar"}
           </button>
         </form>
 
@@ -79,5 +110,6 @@ export default function Register() {
     </div>
   );
 }
+
 
 

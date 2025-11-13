@@ -1,24 +1,22 @@
 # main.py
-import os
-import re
-import tempfile
-import json
-import subprocess
-import asyncio
-import traceback
+import os, re, tempfile, json, subprocess, asyncio, traceback, logging, sys, uvicorn
 from typing import List, Tuple, Optional
 from dotenv import load_dotenv
+from database import SessionLocal, init_db, User, Chat, Message
 from faster_whisper import WhisperModel
 from jira import JIRA, JIRAError
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Depends
 from pydantic import BaseModel
-import uvicorn
+from fastapi.responses import StreamingResponse
+from io import BytesIO
 from fastapi.middleware.cors import CORSMiddleware
-import logging
 from functools import lru_cache
 from pathlib import Path
-import logging
-import sys
+from datetime import datetime
+
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import A4
 
 logger = logging.getLogger("assistente-rag")
 logger.setLevel(logging.INFO)
@@ -108,12 +106,79 @@ Com base no histórico e na nova instrução, refine a última resposta do assis
 3.  CADA User Story DEVE ter uma seção "**Critérios de Aceite:**" com pelo menos 2 critérios.
 """
 
+DOCUMENTATION_PROMPT_TEMPLATE = """
+Você é um assistente técnico especializado em gerar **documentação de requisitos e funcionalidades**.
+
+Use as informações fornecidas para criar um **documento técnico estruturado**, com as seguintes seções:
+
+1. **Contexto do Projeto**
+   - Explique o problema ou necessidade do cliente.
+2. **Solução Proposta**
+   - Descreva o que o sistema fará em termos gerais.
+3. **Principais Funcionalidades**
+   - Liste e detalhe as principais funcionalidades esperadas.
+4. **Requisitos Funcionais**
+   - Itens específicos que o sistema deve cumprir.
+5. **Requisitos Não Funcionais**
+   - Aspectos como desempenho, segurança, usabilidade, compatibilidade etc.
+6. **Integrações e Dependências**
+   - Sistemas externos, APIs, ou bancos de dados envolvidos.
+7. **Considerações Técnicas**
+   - Sugestões sobre arquitetura, tecnologias ou frameworks adequados.
+8. **Próximos Passos**
+   - O que deveria ser feito para seguir com o projeto.
+
+---
+**Informações do cliente:**
+{client_request}
+
+**Requisitos levantados:**
+{requirements}
+---
+Gere um texto formal, objetivo e claro, sem listas genéricas. Organize com subtítulos e parágrafos.
+"""
+
 # --- Globals (inicializados na startup) ---
 embeddings_model = None
 vector_db = None
 llm = None
 qa_chain = None
 whisper_model = None
+
+# ------------------ Pydantic Models ------------------
+class UserCreate(BaseModel):
+    name: str
+    email: str
+    password: str
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+class ChatMessageCreate(BaseModel):
+    user_id: int
+    content: str
+    sender: str = "user"
+    chat_id: Optional[int] = None
+
+class DocumentRequest(BaseModel):
+    client_request: str
+    requirements: str
+
+class DocumentResponse(BaseModel):
+    file_name: str
+    file_path: str
+
+# ------------------ DEPENDENCY ------------------
+
+init_db()
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 # ------------------ Helpers & Utilities ------------------
 
@@ -312,6 +377,61 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- Função para extrair palavra-chave contextual ---
+def extrair_palavra_chave(texto: str) -> str:
+    """
+    Tenta capturar algo como:
+    - 'sistema de vendas' → 'vendas'
+    - 'aplicativo de pedidos' → 'pedidos'
+    """
+    match = re.search(r"\b(sistema|plataforma|app|aplicativo|dashboard)\s+de\s+(\w+)", texto, re.IGNORECASE)
+    return match.group(2).lower() if match else "projeto"
+
+# --- Função para gerar o PDF ---
+def clean_text_for_pdf(text: str) -> str:
+    cleaned = text
+
+    # --- remover markdown de títulos (#, ##, ### etc)
+    cleaned = re.sub(r"^#{1,6}\s*", "", cleaned, flags=re.MULTILINE)
+
+    # --- remover negrito/itálico: **texto**, *texto*
+    cleaned = re.sub(r"\*\*(.*?)\*\*", r"\1", cleaned)
+    cleaned = re.sub(r"\*(.*?)\*", r"\1", cleaned)
+
+    # --- remover backticks `code`
+    cleaned = re.sub(r"`([^`]*)`", r"\1", cleaned)
+
+    # --- remover bullets (* algo ou - algo)
+    cleaned = re.sub(r"^[\*\-]\s*", "", cleaned, flags=re.MULTILINE)
+
+    # --- remover títulos tipo ### Texto
+    cleaned = re.sub(r"^###\s*", "", cleaned, flags=re.MULTILINE)
+
+    # --- remover links markdown [texto](url)
+    cleaned = re.sub(r"\[(.*?)\]\((.*?)\)", r"\1", cleaned)
+
+    # --- remover múltiplos espaços
+    cleaned = re.sub(r"[ ]{2,}", " ", cleaned)
+
+    # --- normalizar quebras de linha
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+
+    # --- remover espaços no início da linha
+    cleaned = re.sub(r"^[ \t]+", "", cleaned, flags=re.MULTILINE)
+
+    return cleaned.strip()
+
+def gerar_pdf(conteudo: str, caminho: str):
+    styles = getSampleStyleSheet()
+    doc = SimpleDocTemplate(caminho, pagesize=A4)
+    story = []
+
+    for paragrafo in conteudo.split("\n\n"):
+        story.append(Paragraph(paragrafo, styles["Normal"]))
+        story.append(Spacer(1, 12))
+
+    doc.build(story)
 
 # ------------------ Load Models & RAG Chain ------------------
 
@@ -563,6 +683,114 @@ async def audio_chat(file: UploadFile = File(...)):
                 os.remove(tmp_file)
             except Exception:
                 logger.debug("Falha ao remover arquivo temporário.")
+
+@app.post("/cadastro")
+def signup(user: UserCreate):
+    db = SessionLocal()
+    if db.query(User).filter(User.email == user.email).first():
+        raise HTTPException(status_code=400, detail="Email já cadastrado")
+    
+    new_user = User(
+        name=user.name,
+        email=user.email,
+        password_hash=User.hash_password(user.password)
+    )
+    
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    return {"id": new_user.id, "name": new_user.name, "email": new_user.email}
+
+@app.post("/login")
+def login(user: UserLogin, db: SessionLocal = Depends(get_db)):
+    db_user = db.query(User).filter(User.email == user.email).first()
+    if not db_user or not db_user.verify_password(user.password):
+        raise HTTPException(status_code=401, detail="Email ou senha inválidos")
+
+    # Podemos retornar token JWT mais tarde, mas por enquanto só id
+    return {"id": db_user.id, "name": db_user.name, "email": db_user.email}
+
+# ------------------ ROTAS DE CHAT/HISTÓRICO ------------------
+
+@app.get("/chats")
+def get_user_chats(user_id: int, db: SessionLocal = Depends(get_db)):
+    """
+    Retorna todos os chats do usuário com mensagens.
+    """
+    chats = db.query(Chat).filter(Chat.user_id == user_id).all()
+    result = []
+    for chat in chats:
+        result.append({
+            "id": chat.id,
+            "title": chat.title,
+            "created_at": chat.created_at,
+            "messages": [{"sender": m.sender, "content": m.content, "created_at": m.created_at} for m in chat.messages]
+        })
+    return result
+
+@app.post("/chat_message")
+def add_chat_message(message: ChatMessageCreate, db: SessionLocal = Depends(get_db)):
+    """
+    Cria/atualiza chat e salva mensagem.
+    - Se chat_id não informado, cria novo chat com título igual aos primeiros 50 caracteres da mensagem.
+    """
+    user_id = message.user_id
+    content = message.content
+    sender = message.sender
+    chat_id = message.chat_id
+
+    if chat_id:
+        chat = db.query(Chat).filter(Chat.id == chat_id, Chat.user_id == user_id).first()
+        if not chat:
+            raise HTTPException(status_code=404, detail="Chat não encontrado")
+    else:
+        chat = Chat(user_id=user_id, title=content[:50])
+        db.add(chat)
+        db.commit()
+        db.refresh(chat)
+
+    msg = Message(chat_id=chat.id, sender=sender, content=content)
+    db.add(msg)
+    db.commit()
+    db.refresh(msg)
+
+    return {"chat_id": chat.id, "message_id": msg.id, "sender": msg.sender, "content": msg.content}
+
+@app.post("/generate_pdf")
+async def generate_document(request: DocumentRequest):
+    if not qa_chain:
+        raise HTTPException(status_code=503, detail="Cadeia RAG não inicializada.")
+
+    logger.info("Recebida solicitação para gerar documentação técnica.")
+
+    prompt_completo = DOCUMENTATION_PROMPT_TEMPLATE.format(
+        client_request=request.client_request,
+        requirements=request.requirements
+    )
+
+    try:
+        resposta_rag = await run_blocking_in_thread(qa_chain.invoke, {"query": prompt_completo})
+        conteudo = resposta_rag.get("result", "").strip()
+
+        conteudo_limpo = clean_text_for_pdf(conteudo)
+
+        # --- gerar PDF em memória ---
+        pdf_buffer = BytesIO()
+        gerar_pdf(conteudo_limpo, pdf_buffer)  # você só precisa alterar gerar_pdf pra aceitar um file-like
+        pdf_buffer.seek(0)
+
+        return StreamingResponse(
+            pdf_buffer,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": "attachment; filename=documentacao_requisitos.pdf"
+            }
+        )
+
+    except Exception as e:
+        safe_print_exception("Erro durante /generate_document", e)
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar documentação: {str(e)}")
 
 # ------------------ Run (dev) ------------------
 
