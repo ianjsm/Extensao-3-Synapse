@@ -1,16 +1,63 @@
-# React + Vite
+# ⚡ Front-End — Projeto Synapse
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Interface do projeto de extensão **Synapse**, desenvolvida em **React + Vite + TailwindCSS 4**, com integração ao back-end para análise e visualização de dados.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🚀 Tecnologias Utilizadas
 
-## React Compiler
+| Tecnologia | Função |
+|-------------|--------|
+| **React 19** | Biblioteca principal para construção da interface |
+| **Vite 7** | Bundler e servidor de desenvolvimento rápido |
+| **Tailwind CSS 4** | Framework CSS utilitário para estilização |
+| **Axios** | Requisições HTTP e integração com o backend |
+| **PostCSS + Autoprefixer** | Processamento automático de estilos |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the ESLint configuration
+## 🧩 Estrutura de Pastas
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+
+FRONT-END/
+├── public/ # Arquivos públicos (favicon, index.html, etc)
+├── src/
+│ ├── assets/ # Imagens, ícones, etc.
+│ ├── components/ # Componentes reutilizáveis
+│ ├── pages/ # Páginas principais
+│ ├── api/ # Integração com o backend (Axios)
+│ ├── App.jsx # Componente raiz
+│ ├── index.css # Estilos globais (Tailwind)
+│ └── main.jsx # Ponto de entrada da aplicação
+├── .gitignore
+├── package.json
+├── tailwind.config.cjs
+├── postcss.config.cjs
+└── vite.config.js
+
+
+---
+
+## ⚙️ Como Rodar o Projeto Localmente
+
+### 🧱 1. Clonar o repositório
+```bash
+git clone https://github.com/ianjsm/Extensao-3-Synapse.git
+```
+
+📁 2. Entrar na pasta do front-end
+
+cd Extensao-3-Synapse/FRONT-END
+
+📦 3. Instalar as dependências
+
+npm install
+
+▶️ 4. Rodar o servidor de desenvolvimento
+
+npm run dev
+
+
+A aplicação ficará disponível em:
+
+http://localhost:5173/
