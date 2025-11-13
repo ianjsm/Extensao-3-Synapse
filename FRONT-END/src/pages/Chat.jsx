@@ -6,43 +6,73 @@ export default function Chat() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [recording, setRecording] = useState(false);
-  const [loading, setLoading] = useState(false); // novo estado
+  const [loading, setLoading] = useState(false);
+  const [isFirstMessage, setIsFirstMessage] = useState(true); // nova flag
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
-  // Envia mensagem de texto
+  // Constrói o histórico para /refine
+  const buildHistory = () => {
+    return messages
+      .filter(m => m.sender === "user" || m.sender === "assistant")
+      .map(m => ({
+        role: m.sender,
+        content: m.text
+      }));
+  };
+
   const sendMessage = async () => {
     if (!input.trim()) return;
 
     const userMsg = { sender: "user", text: input };
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages(prev => [...prev, userMsg]);
     setInput("");
-    setLoading(true); // ativa "Pensando..."
+    setLoading(true);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/start_analysis", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ client_request: input }),
-      });
+      let res;
+      if (isFirstMessage) {
+        // primeira mensagem -> start_analysis
+        res = await fetch("http://127.0.0.1:8000/start_analysis", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ client_request: input }),
+        });
+        setIsFirstMessage(false);
+      } else {
+        // mensagens seguintes -> refine
+        res = await fetch("http://127.0.0.1:8000/refine", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            instruction: input,
+            history: buildHistory(),
+          }),
+        });
+      }
+
       const data = await res.json();
-      setMessages((prev) => [
+      setMessages(prev => [
         ...prev,
-        { sender: "assistant", text: data.generated_requirements || "...", 
+        { 
+          sender: "assistant", 
+          text: data.generated_requirements || data.refined_requirements || "...",
           canApprove: true,
-          originalRequest: input, },
+          originalRequest: input,
+        },
       ]);
-    } catch {
-      setMessages((prev) => [
+    } catch (err) {
+      console.error(err);
+      setMessages(prev => [
         ...prev,
         { sender: "assistant", text: "Erro ao conectar com o servidor." },
       ]);
     } finally {
-      setLoading(false); // desativa "Pensando..."
+      setLoading(false);
     }
   };
 
-  // Inicia/para gravação e envia para o back-end
+  // Início/parada de gravação e envio de áudio
   const handleVoiceInput = async () => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       alert("Seu navegador não suporta gravação de áudio.");
@@ -56,9 +86,7 @@ export default function Chat() {
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
 
-      mediaRecorder.ondataavailable = (e) => {
-        audioChunksRef.current.push(e.data);
-      };
+      mediaRecorder.ondataavailable = (e) => audioChunksRef.current.push(e.data);
 
       mediaRecorder.onstop = async () => {
         setRecording(false);
@@ -73,11 +101,10 @@ export default function Chat() {
     }
   };
 
-  // Envia o áudio para o back-end
   const sendAudio = async (file) => {
     const formData = new FormData();
     formData.append("file", file);
-    setLoading(true); // ativa "Pensando..." enquanto processa áudio
+    setLoading(true);
 
     try {
       const res = await fetch("http://127.0.0.1:8000/audio_chat", {
@@ -85,23 +112,22 @@ export default function Chat() {
         body: formData,
       });
       const data = await res.json();
-      setMessages((prev) => [
+      setMessages(prev => [
         ...prev,
         { sender: "user", text: data.transcript },
         { sender: "assistant", text: data.llm_response },
       ]);
     } catch (err) {
       console.error(err);
-      setMessages((prev) => [
+      setMessages(prev => [
         ...prev,
         { sender: "assistant", text: "Erro ao processar áudio." },
       ]);
     } finally {
-      setLoading(false); // desativa "Pensando..."
+      setLoading(false);
     }
   };
 
-  // Função para aprovar e mandar para o Jira
   const approveAndSendToJira = async (message) => {
     try {
       await fetch("http://127.0.0.1:8000/approve", {
@@ -147,7 +173,6 @@ export default function Chat() {
           onKeyDown={(e) => e.key === "Enter" && sendMessage()}
         />
 
-        {/* Botão de Áudio */}
         <button
           onClick={handleVoiceInput}
           className={`mr-2 p-3 rounded-full transition-colors duration-200 ${
@@ -180,6 +205,7 @@ export default function Chat() {
     </ChatLayout>
   );
 }
+
 
 
 
