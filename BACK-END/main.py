@@ -13,6 +13,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from functools import lru_cache
 from pathlib import Path
 from datetime import datetime
+from sprint import router as sprint_router
+
+
 
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
@@ -69,17 +72,55 @@ if not all([JIRA_URL, JIRA_USERNAME, JIRA_API_TOKEN, JIRA_PROJECT_KEY]):
 
 # --- Prompts ---
 PROMPT_ANALISTA_OCULTO_TEMPLATE = """
-Sua tarefa é atuar como um Analista de Requisitos Sênior. 
-Com base no contexto (documentos de template e exemplos) e na solicitação do cliente abaixo, gere uma lista de Requisitos Funcionais como User Stories.
+Sua tarefa é atuar como um Analista de Requisitos Sênior.
+Com base no contexto (documentos de template e exemplos) e na solicitação do cliente abaixo,
+gere uma lista de User Stories **em formato JSON válido**, seguindo rigorosamente as regras abaixo.
 
-**REGRAS ESTRITAS DE FORMATAÇÃO:**
-1.  **NÃO** inclua nenhum título, cabeçalho, introdução ou texto de conclusão. Sua resposta deve começar IMEDIATAMENTE com o primeiro "**Como um:**".
-2.  Cada User Story DEVE seguir o formato: "**Como um:**...", "**Eu quero:**...", "**Para que:**...".
-3.  CADA User Story DEVE ter uma seção "**Critérios de Aceite:**" com pelo menos 2 critérios.
+NÃO escreva nada fora do JSON.
+NÃO inclua títulos, explicações ou texto adicional.
+A resposta deve conter APENAS um objeto JSON.
 
----
-Solicitação do Cliente: "{solicitacao_cliente}"
----
+-------------------------------------------
+REGRAS DE FORMATAÇÃO DO JSON (OBRIGATÓRIAS)
+-------------------------------------------
+
+O JSON deve ter a estrutura:
+
+{
+  "user_stories": [
+    {
+      "id": "US-001",
+      "title": "Título curto e claro",
+      "story": {
+        "role": "Como um: ...",
+        "goal": "Eu quero: ...",
+        "reason": "Para que: ..."
+      },
+      "acceptance_criteria": [
+        "Critério 1",
+        "Critério 2"
+      ],
+      "priority": "alta | media | baixa",
+      "estimate": 1
+    }
+  ]
+}
+
+REGRAS ESTRITAS:
+1. O JSON deve ser válido, sem vírgulas sobrando ou campos faltando.
+2. IDs devem seguir padrão US-001, US-002, US-003...
+3. Prioridades devem ser: "alta", "media" ou "baixa".
+4. A estimativa deve ser um número inteiro (em story points).
+5. Cada user story deve possuir **pelo menos 2 critérios de aceitação**.
+6. "story" deve SEMPRE ter exatamente 3 campos:
+   - role  (Como um:)
+   - goal  (Eu quero:)
+   - reason (Para que:)
+
+-------------------------------------------
+Solicitação do Cliente:
+"{solicitacao_cliente}"
+-------------------------------------------
 """
 
 RAG_TEMPLATE = """
@@ -92,18 +133,60 @@ Resposta:
 """
 
 REFINEMENT_PROMPT_TEMPLATE = """
-Histórico da conversa:
----
-{historico_formatado}
----
-Nova instrução do usuário: {instruction}
----
-Com base no histórico e na nova instrução, refine a última resposta do assistente.
+Você deve refinar a última resposta do assistente com base no histórico e na nova instrução do usuário.
+A resposta refinada deve ser **EXCLUSIVAMENTE um JSON válido**, seguindo exatamente o mesmo formato
+do JSON de user stories utilizado anteriormente.
 
-**REGRAS ESTRITAS DE FORMATAÇÃO (APLIQUE NOVAMENTE):**
-1.  **NÃO** inclua nenhum título, cabeçalho, introdução ou texto de conclusão. Sua resposta deve começar IMEDIATAMENTE com o primeiro "**Como um:**".
-2.  Cada User Story DEVE seguir o formato: "**Como um:**...", "**Eu quero:**...", "**Para que:**...".
-3.  CADA User Story DEVE ter uma seção "**Critérios de Aceite:**" com pelo menos 2 critérios.
+NÃO escreva nada fora do JSON.
+NÃO inclua explicações, títulos, mensagens adicionais ou qualquer texto antes ou depois do JSON.
+
+-------------------------------------------
+Histórico da Conversa:
+{historico_formatado}
+-------------------------------------------
+
+Nova instrução do usuário:
+{instruction}
+
+-------------------------------------------
+REGRAS OBRIGATÓRIAS DO JSON
+-------------------------------------------
+
+O JSON final deve ter a estrutura exata:
+
+{
+  "user_stories": [
+    {
+      "id": "US-001",
+      "title": "Título claro",
+      "story": {
+        "role": "Como um: ...",
+        "goal": "Eu quero: ...",
+        "reason": "Para que: ..."
+      },
+      "acceptance_criteria": [
+        "Critério 1",
+        "Critério 2"
+      ],
+      "priority": "alta | media | baixa",
+      "estimate": 1
+    }
+  ]
+}
+
+REGRAS ESTRITAS (APLICAR NOVAMENTE):
+1. A saída deve ser SOMENTE o objeto JSON.
+2. A estrutura deve continuar idêntica ao schema acima.
+3. IDs devem manter o padrão US-001, US-002...
+4. Prioridade deve ser: "alta", "media" ou "baixa".
+5. Estimativa deve ser um número inteiro.
+6. Cada user story deve ter pelo menos 2 critérios de aceitação.
+7. Campos "role", "goal" e "reason" devem manter o formato:
+   - "Como um: ..."
+   - "Eu quero: ..."
+   - "Para que: ..."
+
+Você deve reescrever o JSON completo com as modificações solicitadas.
 """
 
 DOCUMENTATION_PROMPT_TEMPLATE = """
@@ -192,34 +275,6 @@ def get_jira_client_cached() -> JIRA:
     logger.info("Criando cliente JIRA (cacheado).")
     return JIRA(server=JIRA_URL, basic_auth=(JIRA_USERNAME, JIRA_API_TOKEN))
 
-def formatar_para_jira(texto_md: str) -> str:
-    """
-    Traduz uma string de Markdown simples para o formato Jira Wiki Markup.
-    """
-    if not texto_md:
-        return ""
-
-    texto_jira = texto_md
-
-    # 1. Títulos: Converte "## Título" para "h2. Título"
-    texto_jira = re.sub(r"^\s*##\s*(.*)", r"h2. \1", texto_jira, flags=re.MULTILINE)
-
-    # 2. Negrito: Converte "**texto**" para "*texto*"
-    # (Usando ._? para ser "não-ganancioso" e pegar o par correto)
-    texto_jira = re.sub(r"\*\*(.*?)\*\*", r"*\1*", texto_jira)
-
-    # 3. Listas Numeradas: Converte "1. item" para "# item"
-    texto_jira = re.sub(r"^\s*(\d+)\.\s+", r"# ", texto_jira, flags=re.MULTILINE)
-
-    # 4. Linhas Horizontais: Converte "---" para "----"
-    texto_jira = re.sub(r"^\s*---\s*$", r"----", texto_jira, flags=re.MULTILINE)
-
-    # 5. (Opcional) Itálico: Converte "*texto*" para "_texto_"
-    # Vamos converter os itálicos do LLM em negrito do Jira para destaque
-    texto_jira = re.sub(r"\*(.*?)\*", r"*\1*", texto_jira) 
-
-    return texto_jira.strip()
-
 def create_jira_issue_sync(issue_dict: dict) -> Tuple[Optional[str], Optional[str]]:
     """
     Função síncrona que cria issue no Jira. Retorna (key, title) ou (None, None) em erro.
@@ -248,52 +303,18 @@ def normalize_text_output(text: str) -> str:
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text
 
-def split_requirements(text: str) -> List[str]:
-    """
-    Separa requisitos/estórias mesmo que o LLM use formatos variados.
-    Aceita variações como:
-      - **Como um:**
-      - Como um:
-      - Como um -
-      - *Como um*
-    Retorna lista de blocos que começam com 'Como um'.
-    """
-    text = normalize_text_output(text)
-    # Tornar uniforme: substitui variantes por um marcador único
-    standardized = re.sub(r"(?i)\*{0,2}\s*Como um[:\-\*]*\s*", "\n\n**Como um:** ", text)
-    # Agora split por marcador que colocamos (mantendo marcador nos itens)
-    parts = [p.strip() for p in re.split(r"\n\s*(?=\*\*Como um:\*\*)", standardized) if p.strip()]
-    # Garantir que cada item comece com '**Como um:**' e retornar
-    cleaned = []
-    for p in parts:
-        if p.lower().startswith("**como um:**"):
-            cleaned.append(p)
-        elif p.lower().startswith("como um"):
-            cleaned.append("**" + p + "**")
-        else:
-            # Pode ser texto introdutório: anexar ao último se existir
-            if cleaned:
-                cleaned[-1] += "\n\n" + p
-            else:
-                # criar um bloco genérico
-                cleaned.append(p)
-    return cleaned
+def split_requirements(text: str) -> List[dict]:
 
-def extract_title_from_requirement(text: str) -> str:
-    """
-    Extrai um título curto a partir do campo 'Eu quero:' ou da primeira linha.
-    """
-    # Tentar localizar "Eu quero:" (com ou sem formatação)
-    m = re.search(r"(?i)Eu quero[:\s\-]*\**\s*(.+)", text)
-    if m:
-        candidate = m.group(1).split("\n")[0].strip()
-        return candidate[:120]
-    # fallback para primeira linha relevante
-    for line in text.splitlines():
-        line = line.strip()
-        if line:
-            return line[:120]
-    return "Requisito sem título"
+    import json
+    if not text:
+        return []
+
+    try:
+        data = json.loads(text)
+        return data.get("user_stories", [])
+    except json.JSONDecodeError:
+        logger.warning("JSON inválido recebido do assistente.")
+        return []
 
 def run_blocking_in_thread(func, *args, **kwargs):
     """Helper para executar I/O/blocking em thread sem bloquear o loop principal."""
@@ -377,6 +398,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(sprint_router, prefix="/sprint")
 
 # --- Função para extrair palavra-chave contextual ---
 def extrair_palavra_chave(texto: str) -> str:
@@ -501,7 +524,7 @@ async def start_analysis(request: AnalysisRequest):
         raise HTTPException(status_code=503, detail="Cadeia RAG não inicializada.")
     logger.info("Recebida solicitação inicial: %s", (request.client_request[:120] + '...') if len(request.client_request) > 120 else request.client_request)
 
-    prompt_completo = PROMPT_ANALISTA_OCULTO_TEMPLATE.format(solicitacao_cliente=request.client_request)
+    prompt_completo = PROMPT_ANALISTA_OCULTO_TEMPLATE.replace("{solicitacao_cliente}", request.client_request)
     try:
         # invoke pode ser custoso - manter chamado síncrono via to_thread se necessário
         resposta_rag = await run_blocking_in_thread(qa_chain.invoke, {"query": prompt_completo})
@@ -523,9 +546,10 @@ async def refine_requirements(request: RefineRequest):
     logger.info("Recebida instrução de refinamento: %s", request.instruction[:120])
 
     historico_formatado = "\n".join([f"{msg.role}: {msg.content}" for msg in request.history])
-    prompt_completo = REFINEMENT_PROMPT_TEMPLATE.format(
-        historico_formatado=historico_formatado,
-        instruction=request.instruction
+    prompt_completo = (
+    REFINEMENT_PROMPT_TEMPLATE
+        .replace("{historico_formatado}", historico_formatado)
+        .replace("{instruction}", request.instruction)
     )
     try:
         resposta_rag = await run_blocking_in_thread(qa_chain.invoke, {"query": prompt_completo})
@@ -543,85 +567,54 @@ async def refine_requirements(request: RefineRequest):
 @app.post("/approve", response_model=ApproveResponse)
 async def approve_and_send_to_jira(request: ApproveRequest):
     logger.info("Recebida solicitação de aprovação (aprovar->Jira).")
-    requisitos_finais = request.final_requirements
-    solicitacao_original = request.original_request
 
-    logger.info("Dividindo requisitos gerados pelo LLM...")
-    lista_de_requisitos = split_requirements(requisitos_finais)
-    logger.info("Encontrados %d requisitos (após split).", len(lista_de_requisitos))
-
+    # Extrair lista de user stories do JSON
+    lista_de_requisitos = split_requirements(request.final_requirements)
     if not lista_de_requisitos:
-        raise HTTPException(status_code=400, detail="Nenhum requisito reconhecido no formato 'Como um'. Verifique a formatação da resposta do LLM.")
-
-    # --- VALIDADOR AUTOMÁTICO ANTES DE CRIAR TICKETS ---
-    validos = []
-    invalidos = []
-
-    for req in lista_de_requisitos:
-        texto = req.lower()
-
-        falta_como_um = "como um" not in texto
-        falta_criterios = "critério de aceite" not in texto and "critérios de aceite" not in texto
-
-        if falta_como_um or falta_criterios:
-            invalidos.append({
-                "requisito": req,
-                "erro_como_um": falta_como_um,
-                "erro_criterios": falta_criterios
-            })
-        else:
-            validos.append(req)
-
-    # Se houver inválidos, NÃO cria tickets — devolve relatório ao frontend
-    if invalidos:
-        return ApproveResponse(
-            message="Alguns requisitos precisam ser revisados antes de enviar ao Jira.",
-            created_tickets=[],
-            invalid_requirements=invalidos  # você adiciona esse campo no schema
+        raise HTTPException(
+            status_code=400,
+            detail="Nenhuma user story encontrada no JSON."
         )
 
-    # Se todos passaram, segue com a criação normal
-    lista_de_requisitos = validos
-
+    solicitacao_original = request.original_request
     tickets_criados = []
     erros = []
 
-    async def criar_um_ticket(req_text: str):
-        req_limpo = req_text.strip()
-        if not req_limpo:
-            return None
-        titulo = extract_title_from_requirement(req_limpo)
+    async def criar_um_ticket(story: dict):
+        titulo = story.get("title", "Requisito sem título")
+        desc = (
+            f"Solicitação Original do Cliente:\n{{quote}}\n{solicitacao_original}\n{{quote}}\n\n"
+            "--- USER STORY DETALHADA ---\n\n"
+            f"Role: {story.get('story', {}).get('role', '')}\n"
+            f"Goal: {story.get('story', {}).get('goal', '')}\n"
+            f"Reason: {story.get('story', {}).get('reason', '')}\n\n"
+            f"Critérios de Aceitação:\n" + "\n".join(story.get("acceptance_criteria", [])) + "\n"
+            f"Prioridade: {story.get('priority', '')}\n"
+            f"Estimate: {story.get('estimate', '')}"
+        )
         issue_dict = {
             'project': {'key': JIRA_PROJECT_KEY},
             'summary': titulo,
-            'description': (
-                f"Solicitação Original do Cliente:\n{{quote}}\n{solicitacao_original}\n{{quote}}\n\n"
-                "--- REQUISITO DETALHADO ---\n\n"
-                f"{req_limpo}"
-            ),
+            'description': desc,
             'issuetype': {'name': 'Story'},
         }
-        # Criar em thread para não bloquear
         key, created_title = await run_blocking_in_thread(create_jira_issue_sync, issue_dict)
         return key, created_title
 
-    # Criar tickets em paralelo (limitado)
-    semaphore = asyncio.Semaphore(int(os.getenv("JIRA_CONCURRENCY", "4")))
-    async def sem_task(req):
-        async with asyncio.Lock():  # evita race com client cache; JIRA lib não é totalmente async safe
-            return await criar_um_ticket(req)
+    # Criação paralela de tickets
+    async def sem_task(story):
+        async with asyncio.Lock():
+            return await criar_um_ticket(story)
 
-    tasks = []
-    for req in lista_de_requisitos:
-        tasks.append(sem_task(req))
-
+    tasks = [sem_task(story) for story in lista_de_requisitos]
     results = await asyncio.gather(*tasks, return_exceptions=True)
+
     for res in results:
         if isinstance(res, Exception):
             safe_print_exception("Erro ao criar ticket (gather)", res)
             erros.append(str(res))
         elif res is None:
-            erros.append("Requisito vazio")
+            erros.append("User story vazia")
         else:
             key, title = res
             if key:
@@ -629,14 +622,14 @@ async def approve_and_send_to_jira(request: ApproveRequest):
             else:
                 erros.append(f"Falha ao criar ticket para: {title if title else 'sem título'}")
 
+    msg = f"Processo concluído com {len(tickets_criados)} tickets criados."
     if erros:
-        msg = f"Processo concluído com {len(erros)} erros e {len(tickets_criados)} sucessos."
+        msg += f" {len(erros)} erros ocorreram."
         logger.warning(msg)
-        return ApproveResponse(message=msg, created_tickets=tickets_criados)
     else:
-        msg = f"Sucesso! {len(tickets_criados)} tickets criados no Jira."
         logger.info(msg)
-        return ApproveResponse(message=msg, created_tickets=tickets_criados)
+
+    return ApproveResponse(message=msg, created_tickets=tickets_criados)
 
 @app.post("/audio_chat")
 async def audio_chat(file: UploadFile = File(...)):

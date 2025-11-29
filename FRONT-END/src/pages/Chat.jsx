@@ -180,6 +180,21 @@ export default function Chat() {
   };
 
   // ------------------ INTEGRAR AO JIRA ------------------
+  function extractJson(text) {
+    try {
+      // remove blocos ```json ... ```
+      const cleaned = text
+        .replace(/```json/gi, "")
+        .replace(/```/g, "")
+        .trim();
+
+      return JSON.parse(cleaned);
+    } catch (e) {
+      console.error("JSON inválido:", e);
+      return null;
+    }
+  }
+
   const integrateToJira = async () => {
     const lastAssistantMsg = [...messages].reverse().find(m => m.sender === "assistant");
     const lastUserMsg = [...messages].reverse().find(m => m.sender === "user");
@@ -192,11 +207,21 @@ export default function Chat() {
     setJiraStatus("Enviando ao Jira...");
 
     try {
+      
+      const parsed = extractJson(lastAssistantMsg.content);
+
+      if (!parsed) {
+        setJiraStatus("❌ O assistente não retornou JSON válido.");
+        return;
+      }
+
+      console.log("DEBUG >>> Enviando para o approve()", parsed);
+
       const res = await fetch("http://127.0.0.1:8000/approve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          final_requirements: lastAssistantMsg.content,
+          final_requirements: JSON.stringify(parsed),
           original_request: lastUserMsg.content,
         }),
       });
