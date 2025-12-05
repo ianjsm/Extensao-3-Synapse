@@ -47,7 +47,7 @@ export default function Login() {
           <div>
             <label className="block text-gray-700 font-medium mb-1">E-mail</label>
             <input
-              className="w-full p-3 rounded-lg border border-gray-300 focus:border-[#0057B8] focus:ring-2 focus:ring-[#0057B8]/30 outline-none transition"
+              className="w-full p-3 rounded-lg border border-gray-300 text-black focus:border-[#0057B8] focus:ring-2 focus:ring-[#0057B8]/30 outline-none transition"
               placeholder="exemplo@dominio.com"
               type="email"
               value={email}
@@ -58,7 +58,7 @@ export default function Login() {
           <div>
             <label className="block text-gray-700 font-medium mb-1">Senha</label>
             <input
-              className="w-full p-3 rounded-lg border border-gray-300 focus:border-[#0057B8] focus:ring-2 focus:ring-[#0057B8]/30 outline-none transition"
+              className="w-full p-3 rounded-lg border border-gray-300 text-black focus:border-[#0057B8] focus:ring-2 focus:ring-[#0057B8]/30 outline-none transition"
               placeholder="********"
               type="password"
               value={pass}

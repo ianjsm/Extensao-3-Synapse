@@ -52,7 +52,7 @@ export default function Register() {
               Nome completo
             </label>
             <input
-              className="w-full p-3 rounded-lg border border-gray-300 focus:border-[#0057B8] focus:ring-2 focus:ring-[#0057B8]/30 outline-none transition"
+              className="w-full p-3 rounded-lg border border-gray-300 text-black focus:border-[#0057B8] focus:ring-2 focus:ring-[#0057B8]/30 outline-none transition"
               placeholder="Seu nome"
               type="text"
               value={name}
@@ -65,7 +65,7 @@ export default function Register() {
               E-mail
             </label>
             <input
-              className="w-full p-3 rounded-lg border border-gray-300 focus:border-[#0057B8] focus:ring-2 focus:ring-[#0057B8]/30 outline-none transition"
+              className="w-full p-3 rounded-lg border border-gray-300 text-black focus:border-[#0057B8] focus:ring-2 focus:ring-[#0057B8]/30 outline-none transition"
               placeholder="exemplo@dominio.com"
               type="email"
               value={email}
@@ -78,7 +78,7 @@ export default function Register() {
               Senha
             </label>
             <input
-              className="w-full p-3 rounded-lg border border-gray-300 focus:border-[#0057B8] focus:ring-2 focus:ring-[#0057B8]/30 outline-none transition"
+              className="w-full p-3 rounded-lg border border-gray-300 text-black focus:border-[#0057B8] focus:ring-2 focus:ring-[#0057B8]/30 outline-none transition"
               placeholder="********"
               type="password"
               value={pass}
