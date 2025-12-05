@@ -12,9 +12,9 @@ from io import BytesIO
 from fastapi.middleware.cors import CORSMiddleware
 from functools import lru_cache
 from pathlib import Path
-from datetime import datetime
-from sprint import router as sprint_router
-
+from datetime import datetime, timedelta
+from llm import get_llm
+from sprint import replan_tasks_with_gemini, generate_tasks_with_gemini
 
 
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
@@ -29,6 +29,9 @@ formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(messag
 handler.setFormatter(formatter)
 if not logger.hasHandlers():
     logger.addHandler(handler)
+
+MAX_CONCURRENT_ISSUES = 5
+semaphore = asyncio.Semaphore(MAX_CONCURRENT_ISSUES)
 
 # --- Importações Langchain (conforme seu ambiente atual) ---
 from langchain_chroma import Chroma
@@ -49,10 +52,12 @@ load_dotenv()
 
 # --- Carregar Credenciais (fora de funções) ---
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+api_key = os.getenv("GOOGLE_API_KEY")
 JIRA_URL = os.getenv("JIRA_URL")
 JIRA_USERNAME = os.getenv("JIRA_USERNAME")
 JIRA_API_TOKEN = os.getenv("JIRA_API_TOKEN")
 JIRA_PROJECT_KEY = os.getenv("JIRA_PROJECT_KEY")
+JIRA_BOARD_ID = os.getenv("JIRA_BOARD_ID")
 
 # --- Configuráveis ---
 PATH_VECTOR_DB = os.getenv("PATH_VECTOR_DB", "chroma_db")
@@ -271,9 +276,10 @@ def safe_print_exception(prefix: str, exc: Exception):
 
 @lru_cache(maxsize=1)
 def get_jira_client_cached() -> JIRA:
-    """Retorna um cliente JIRA (cacheado) — criação rápida e reutilizável."""
+    """Retorna um cliente JIRA cacheado."""
     logger.info("Criando cliente JIRA (cacheado).")
-    return JIRA(server=JIRA_URL, basic_auth=(JIRA_USERNAME, JIRA_API_TOKEN))
+    return JIRA(server=JIRA_URL, basic_auth=(JIRA_USERNAME, JIRA_API_TOKEN), 
+                options={'max_retries': 3, 'pool_connections': 60, 'pool_maxsize': 60})
 
 def create_jira_issue_sync(issue_dict: dict) -> Tuple[Optional[str], Optional[str]]:
     """
@@ -399,7 +405,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(sprint_router, prefix="/sprint")
 
 # --- Função para extrair palavra-chave contextual ---
 def extrair_palavra_chave(texto: str) -> str:
@@ -484,11 +489,7 @@ def load_models_and_chain():
     )
 
     logger.info("Inicializando LLM: %s", LLM_MODEL_NAME)
-    llm = ChatGoogleGenerativeAI(
-        model=LLM_MODEL_NAME,
-        temperature=float(os.getenv("LLM_TEMPERATURE", "0.3")),
-        google_api_key=GOOGLE_API_KEY
-    )
+    llm = get_llm() 
 
     retriever = vector_db.as_retriever(search_kwargs={"k": RAG_RETRIEVER_K})
     rag_prompt = PromptTemplate(template=RAG_TEMPLATE, input_variables=["context", "question"])
@@ -785,6 +786,232 @@ async def generate_document(request: DocumentRequest):
         safe_print_exception("Erro durante /generate_document", e)
         raise HTTPException(status_code=500, detail=f"Erro ao gerar documentação: {str(e)}")
 
+#---------------------- PLANEJAMENTO DE SPRINT ---------------------    
+
+from sprint import replan_tasks_with_gemini, generate_tasks_with_gemini
+
+class SprintPlanResponse(BaseModel):
+    sprint_name: str
+    tasks: list[dict]
+
+class SprintRequest(BaseModel):
+    messages: list[ChatMessage]
+
+def extract_json(text: str):
+    # Remove demarcação de blocos ```json ... ```
+    text = re.sub(r"```(?:json)?", "", text)
+    text = text.replace("```", "")
+
+    # Extrai o primeiro objeto JSON bem formado
+    match = re.search(r"\{[\s\S]*\}", text)
+    if not match:
+        return None
+    
+    try:
+        return json.loads(match.group(0))
+    except Exception:
+        return None
+
+@app.post("/sprint/test-ruleset", response_model=SprintPlanResponse)
+async def test_ruleset(request: SprintRequest):
+
+    # 1. Última msg do assistant
+    last_ai_message = next(
+        (msg.content for msg in reversed(request.messages) if msg.role == "assistant"),
+        None
+    )
+
+    if last_ai_message is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Nenhuma mensagem do assistant encontrada no histórico."
+        )
+
+    # 2. Interpretar stories usando extract_json
+    stories = extract_json(last_ai_message)
+    if stories is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"A última mensagem do assistant não contém JSON válido.\nConteúdo recebido:\n{last_ai_message}"
+        )
+
+    # 3. Chamar o modelo
+    raw_tasks = await generate_tasks_with_gemini(stories)
+
+    if not isinstance(raw_tasks, list):
+        raise HTTPException(
+            status_code=500,
+            detail="Campo 'tasks' não é uma lista."
+        )
+
+    return SprintPlanResponse(
+        sprint_name="Sprint Test",
+        tasks=raw_tasks
+    )
+
+# REPLAN – IA replaneja as tasks existentes
+class ReplanRequest(BaseModel):
+    current_tasks: List[dict]
+    instruction: str
+
+class ReplanResponse(BaseModel):
+    tasks: List[dict]
+
+@app.post("/sprint/replan", response_model=ReplanResponse)
+async def replan_sprint(request: ReplanRequest):
+    """
+    Replaneja a lista atual de tasks com base em uma instrução.
+    """
+    logger.info("Replanejamento solicitado: %s", request.instruction[:120])
+
+    try:
+        # 🔹 Chama função que já retorna lista de tasks limpa
+        tasks = await replan_tasks_with_gemini(
+            current_tasks=request.current_tasks,
+            instruction=request.instruction
+        )
+
+        logger.info("Replanejamento concluído. %d tasks geradas.", len(tasks))
+
+        return ReplanResponse(tasks=tasks)
+
+    except Exception as e:
+        safe_print_exception("Erro durante replanejamento", e)
+        raise HTTPException(status_code=500, detail=f"Erro ao replanejar: {str(e)}")
+
+
+# --- FUNÇÕES DE SPRINT ---
+def create_sprint_rest(jira_client: JIRA, name: str, board_id: int, start: datetime, end: datetime):
+    url = f"{jira_client._options['server']}/rest/agile/1.0/sprint"
+    payload = {
+        "name": name,
+        "originBoardId": board_id,
+        "startDate": start.isoformat() + "Z",
+        "endDate": end.isoformat() + "Z"
+    }
+    response = jira_client._session.post(url, json=payload)
+    response.raise_for_status()
+    return response.json()
+
+def start_sprint_rest(jira_client: JIRA, board_id: int, sprint_id: int, start_date: datetime = None):
+    url = f"{jira_client._options['server']}/rest/agile/1.0/board/{board_id}/sprint/{sprint_id}/start"
+    payload = {}
+    if start_date:
+        payload["startDate"] = start_date.isoformat() + "Z"
+    response = jira_client._session.post(url, json=payload)
+    response.raise_for_status()
+    return response.json()
+
+def create_jira_issue_sync_debug(issue_dict):
+    """Cria uma issue no Jira e loga response resumido em caso de erro."""
+    try:
+        issue = jira_agile_client.create_issue(fields=issue_dict)
+        return issue.key
+    except Exception as e:
+        msg = getattr(e, "response", None)
+        if msg:
+            try:
+                resp_json = msg.json()
+                logger.error("Erro ao criar issue: %s. Response: %s", e, resp_json)
+            except Exception:
+                logger.error("Erro ao criar issue: %s. Response não pôde ser convertido em JSON", e)
+        else:
+            logger.error("Erro ao criar issue (sem response): %s", e)
+        raise e
+
+# --- MODELOS DE REQUEST/RESPONSE ---
+class SendSprintRequest(BaseModel):
+    sprint_name: str
+    created_at: str
+    tasks: List[dict]
+
+class SendSprintResponse(BaseModel):
+    sprint_id: Optional[int]
+    created_issues: List[dict]
+
+
+EMAIL = os.getenv("EMAIL_JIRA")
+jira_agile_client = JIRA(
+    server=f"{JIRA_URL}",
+    basic_auth=(EMAIL, JIRA_API_TOKEN)
+)
+
+# --- FUNÇÃO ASYNC PRINCIPAL ---
+@app.post("/sprint/send_sprint_to_jira", response_model=SendSprintResponse)
+async def send_sprint_to_jira(request: SendSprintRequest):
+    logger.info("=== INÍCIO: Enviando sprint '%s' para Jira (%d tasks) ===", request.sprint_name, len(request.tasks))
+
+    start_date = datetime.utcnow()
+    end_date = start_date + timedelta(days=14)
+    sprint_id = None
+
+    # 1️⃣ Criar sprint
+    try:
+        sprint_data = await asyncio.to_thread(
+            lambda: create_sprint_rest(jira_agile_client, request.sprint_name, JIRA_BOARD_ID, start_date, end_date)
+        )
+        sprint_id = sprint_data.get("id")
+        logger.info("Sprint criada com ID %s", sprint_id)
+    except Exception as e:
+        logger.warning("Não foi possível criar sprint: %s. Todas as tarefas irão para o backlog.", e)
+
+    # 2️⃣ Aguardar e iniciar sprint
+    if sprint_id:
+        await asyncio.sleep(2)  # Delay curto para garantir que sprint esteja disponível
+        try:
+            await asyncio.to_thread(lambda: start_sprint_rest(jira_agile_client, JIRA_BOARD_ID, sprint_id, start_date))
+            logger.info("Sprint %s iniciada com sucesso.", sprint_id)
+        except Exception as e:
+            logger.warning("Não foi possível iniciar sprint %s: %s. As tarefas ficarão no backlog.", sprint_id, e)
+            sprint_id = None  # fallback para backlog
+
+    created = []
+    valid_keys = []
+
+    # 3️⃣ Criar issues com limite de concorrência
+    async def create_issue(task):
+        async with semaphore:
+            title = task.get("description") or "Tarefa sem descrição"
+            desc = (
+                f"Sprint: {request.sprint_name}\n"
+                "--- TASK GERADA PELA IA ---\n"
+                f"Descrição: {task.get('description')}\n"
+                f"US ID: {task.get('us_id')}\n"
+                f"US Title: {task.get('us_title')}\n"
+                f"Estimativa: {task.get('estimate')}\n"
+            )
+            issue_dict = {
+                'project': {'key': JIRA_PROJECT_KEY},
+                'summary': title,
+                'description': desc,
+                'issuetype': {'name': 'Task'},
+            }
+            try:
+                key = await asyncio.to_thread(lambda: create_jira_issue_sync_debug(issue_dict))
+                return key.strip() if key else None
+            except Exception as e:
+                logger.warning("Erro ao criar issue '%s': %s", title, e)
+                return None
+
+    tasks_to_create = [create_issue(t) for t in request.tasks]
+    issue_keys = await asyncio.gather(*tasks_to_create)
+    valid_keys = [k for k in issue_keys if k]
+
+    for key in valid_keys:
+        created.append({"key": key})
+
+    # 4️⃣ Adicionar issues à sprint ativa
+    if sprint_id and valid_keys:
+        try:
+            await asyncio.to_thread(lambda: jira_agile_client.add_issues_to_sprint(sprint_id, valid_keys))
+            logger.info("Todas as issues válidas adicionadas à sprint %s.", sprint_id)
+        except Exception as e:
+            logger.warning("Erro ao adicionar issues à sprint: %s. As tarefas ficarão no backlog.", e)
+
+    logger.info("=== FIM: Sprint '%s' enviada ao Jira. %d issues criadas ===",
+                request.sprint_name, len(valid_keys))
+
+    return SendSprintResponse(sprint_id=sprint_id, created_issues=created)
 # ------------------ Run (dev) ------------------
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useContext } from "react";
+import { useNavigate } from "react-router-dom"; // para navegar para /sprint-planner
 import ChatLayout from "../components/ChatLayout";
 import ChatMessage from "../components/ChatMessage";
 import { UserContext } from "../context/UserContext";
@@ -6,6 +7,7 @@ import { UserContext } from "../context/UserContext";
 export default function Chat() {
   const { user } = useContext(UserContext);
   const userId = user?.id;
+  const navigate = useNavigate();
 
   const [chats, setChats] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
@@ -15,9 +17,24 @@ export default function Chat() {
   const [recording, setRecording] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isFirstMessage, setIsFirstMessage] = useState(true);
-  const [jiraStatus, setJiraStatus] = useState(""); // ← status de integração com Jira
+  const [jiraStatus, setJiraStatus] = useState("");
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+
+  const lastAssistantMsg = [...messages]
+  .reverse()
+  .find(msg => msg.sender === "assistant" || msg.role === "assistant");
+
+  // novos estados para sprint flow
+  const [approvedRequirements, setApprovedRequirements] = useState(null);
+  const [showSprintButton, setShowSprintButton] = useState(false);
+  const [sprintPlans, setSprintPlans] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("sprintPlans_v1") || "[]");
+    } catch {
+      return [];
+    }
+  });
 
   // --- GERAR DOCUMENTAÇÃO ---
   const generateDocumentation = async () => {
@@ -33,15 +50,14 @@ export default function Chat() {
       const res = await fetch("http://127.0.0.1:8000/generate_pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           client_request: messages[0]?.content || "N/A",
-          requirements: lastAssistantMsg.content 
+          requirements: lastAssistantMsg.content
         }),
       });
 
       if (!res.ok) throw new Error("Falha ao gerar PDF.");
 
-      // Se o backend retornar o PDF binário:
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -57,7 +73,6 @@ export default function Chat() {
       setPdfStatus("❌ Erro ao gerar PDF.");
     }
   };
-
 
   // ------------------ LOAD HISTÓRICO ------------------
   const fetchChats = async () => {
@@ -83,11 +98,15 @@ export default function Chat() {
     fetchChats();
   }, [userId]);
 
+  useEffect(() => {
+    localStorage.setItem("sprintPlans_v1", JSON.stringify(sprintPlans));
+  }, [sprintPlans]);
+
   const selectChat = (chat) => {
     setActiveChat(chat);
     setMessages(chat.messages);
-    setPdfStatus("");     // <-- limpa status
-    setJiraStatus("");    // <-- limpa status
+    setPdfStatus("");
+    setJiraStatus("");
   };
 
   // ------------------ BUILD HISTORY ------------------
@@ -97,7 +116,7 @@ export default function Chat() {
   const sendMessage = async () => {
     if (!input.trim() || !userId || loading) return;
     setLoading(true);
-    setJiraStatus(""); // limpa status Jira
+    setJiraStatus("");
 
     const userMsg = { sender: "user", content: input };
     setMessages(prev => [...prev, userMsg]);
@@ -105,7 +124,6 @@ export default function Chat() {
     setInput("");
 
     try {
-      // cria chat se não existir
       let chatId = activeChat?.id;
       if (!chatId) {
         const chatRes = await fetch("http://127.0.0.1:8000/chat_message", {
@@ -134,7 +152,7 @@ export default function Chat() {
         });
       }
 
-      // chamada da LLM
+      // Chamamos o endpoint atual de análise/refino para gerar requirements
       let res;
       if (isFirstMessage) {
         res = await fetch("http://127.0.0.1:8000/start_analysis", {
@@ -154,7 +172,7 @@ export default function Chat() {
       const data = await res.json();
       const assistantMsg = {
         sender: "assistant",
-        content: data.generated_requirements || data.refined_requirements || "...",
+        content: data.generated_requirements || data.refined_requirements || "..."
       };
       setMessages(prev => [...prev, assistantMsg]);
 
@@ -179,15 +197,13 @@ export default function Chat() {
     }
   };
 
-  // ------------------ INTEGRAR AO JIRA ------------------
+  // ------------------ INTEGRAR AO JIRA (APROVAR) ------------------
   function extractJson(text) {
     try {
-      // remove blocos ```json ... ```
       const cleaned = text
         .replace(/```json/gi, "")
         .replace(/```/g, "")
         .trim();
-
       return JSON.parse(cleaned);
     } catch (e) {
       console.error("JSON inválido:", e);
@@ -207,15 +223,11 @@ export default function Chat() {
     setJiraStatus("Enviando ao Jira...");
 
     try {
-      
       const parsed = extractJson(lastAssistantMsg.content);
-
       if (!parsed) {
         setJiraStatus("❌ O assistente não retornou JSON válido.");
         return;
       }
-
-      console.log("DEBUG >>> Enviando para o approve()", parsed);
 
       const res = await fetch("http://127.0.0.1:8000/approve", {
         method: "POST",
@@ -236,12 +248,57 @@ export default function Chat() {
         } else {
           setJiraStatus("✅ Enviado com sucesso!");
         }
+
+        // MARCA como aprovado e mostra botão de planejar sprint
+        setApprovedRequirements(JSON.stringify(parsed));
+        setShowSprintButton(true);
       } else {
         setJiraStatus("❌ Erro ao enviar ao Jira.");
       }
     } catch (err) {
       console.error(err);
       setJiraStatus("❌ Erro de conexão com o Jira.");
+    }
+  };
+
+  // ------------------ GERAR PLANEJAMENTO (chamar /sprint) ------------------
+  const handleGenerateSprintPlan = async () => {
+    console.log("MESSAGES:", messages);
+    console.log("LAST ASSISTANT MSG:", lastAssistantMsg);
+    setLoading(true);
+    try {
+      const res = await fetch("http://127.0.0.1:8000/sprint/test-ruleset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: "assistant",
+              content: lastAssistantMsg.content
+            }
+          ]
+        }),
+      });
+      if (!res.ok) throw new Error("Erro ao gerar planejador.");
+      const data = await res.json();
+      // formato esperado: { sprint_name?, tasks: [...] } — seu backend devolve tasks
+      const sprint = {
+        id: crypto.randomUUID(),
+        sprint_name: data.sprint_name || `Sprint ${sprintPlans.length + 1}`,
+        created_at: new Date().toISOString(),
+        tasks: data.tasks || []
+      };
+      setSprintPlans(prev => [sprint, ...prev]);
+      // abre a página de planner com a sprint recém-criada
+      navigate(`/sprint-planner?sprintId=${sprint.id}`, {
+        state: { tasks: sprint.tasks }
+      });
+      setShowSprintButton(false); // esconde depois de usar
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao gerar planejador de sprint.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -336,9 +393,7 @@ export default function Chat() {
               chats.map(chat => (
                 <div
                   key={chat.id}
-                  className={`p-3 cursor-pointer hover:bg-gray-100 ${
-                    activeChat?.id === chat.id ? "bg-gray-200 font-semibold" : ""
-                  } text-gray-900`}
+                  className={`p-3 cursor-pointer hover:bg-gray-100 ${activeChat?.id === chat.id ? "bg-gray-200 font-semibold" : ""} text-gray-900`}
                   onClick={() => selectChat(chat)}
                 >
                   {chat.title}
@@ -368,6 +423,14 @@ export default function Chat() {
                     >
                       Aprovar e Integrar ao Jira
                     </button>
+
+                    {/* botão PLANEJAR SPRINT (aparece apenas após aprovação) */}
+                      <button
+                        onClick={handleGenerateSprintPlan}
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        Planejador de Sprint
+                      </button>
 
                     {/* --- BOTÃO PDF (vermelho) --- */}
                     <button
@@ -404,19 +467,10 @@ export default function Chat() {
 
             <button
               onClick={handleVoiceInput}
-              className={`mr-2 p-3 rounded-full transition-colors duration-200 ${
-                recording
-                  ? "bg-red-500 hover:bg-red-600 text-white"
-                  : "bg-gray-200 hover:bg-gray-300 text-gray-700"
-              }`}
+              className={`mr-2 p-3 rounded-full transition-colors duration-200 ${recording ? "bg-red-500 hover:bg-red-600 text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-700"}`}
               title={recording ? "Parar gravação" : "Falar"}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                fill={recording ? "white" : "currentColor"}
-                viewBox="0 0 24 24"
-              >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill={recording ? "white" : "currentColor"} viewBox="0 0 24 24">
                 <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z" />
                 <path d="M19 11a7 7 0 0 1-14 0" />
                 <line x1="12" y1="19" x2="12" y2="23" stroke="currentColor" strokeWidth="2" />
@@ -424,10 +478,7 @@ export default function Chat() {
               </svg>
             </button>
 
-            <button
-              onClick={sendMessage}
-              className="bg-[#0057B8] text-white px-5 py-3 rounded-xl hover:bg-[#00449A]"
-            >
+            <button onClick={sendMessage} className="bg-[#0057B8] text-white px-5 py-3 rounded-xl hover:bg-[#00449A]">
               Enviar
             </button>
           </div>
@@ -436,6 +487,7 @@ export default function Chat() {
     </ChatLayout>
   );
 }
+
 
 
 
