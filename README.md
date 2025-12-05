@@ -14,7 +14,7 @@ Abaixo estão as instruções completas para executar ambos os ambientes localme
 ### Para o Back-end
 
 1. **Python 3.11.x** (validado com 3.11.9)
-2. **Git** (para clonar o repositório)
+2. **Git**
 3. **(Opcional no Linux/macOS) libmagic** — utilizado pela lib `unstructured`
 
    * **Ubuntu/Debian:** `sudo apt-get install -y libmagic-dev`
@@ -24,16 +24,13 @@ Abaixo estão as instruções completas para executar ambos os ambientes localme
 
 1. **Node.js + NPM**
 
-   * Verifique se você possui o Node instalado:
+   * Verifique se possui Node instalado:
 
      ```bash
      npm --version
      ```
-   * Caso *não tenha*, instale o Node.js (inclui NPM):
-
-     * **Windows / macOS / Linux:**
-       Acesse: [https://nodejs.org](https://nodejs.org)
-       Baixe a versão LTS e instale normalmente.
+   * Caso *não tenha*, instale pelo site oficial:
+     [https://nodejs.org](https://nodejs.org) (versão LTS)
 
 ---
 
@@ -48,9 +45,15 @@ cd Extensao-3-Synapse
 
 ## 3. Executar o Back-end (FastAPI)
 
-### **Passo 1: Configurar o `.env`**
+Entre no diretório do back-end:
 
-O back-end precisa de credenciais do Google e Jira.
+```bash
+cd BACK-END
+```
+
+---
+
+### **Passo 1: Configurar o `.env`**
 
 1. Copie o arquivo de exemplo:
 
@@ -61,7 +64,8 @@ O back-end precisa de credenciais do Google e Jira.
    # macOS / Linux
    cp .env.example .env
    ```
-2. Edite o arquivo `.env` com suas chaves reais.
+
+2. Edite o arquivo `.env` com suas credenciais do Google e Jira.
 
 ---
 
@@ -95,6 +99,8 @@ Cria o banco vetorial usado pelo RAG.
 python app/ingest.py
 ```
 
+---
+
 ### **Passo 5: Iniciar a API**
 
 ```bash
@@ -111,11 +117,19 @@ http://127.0.0.1:8000
 
 ## 4. Executar o Front-end (React)
 
-Entre na pasta do front-end (ajuste caso o nome seja outro):
+Volte para a raiz caso esteja no back-end:
 
 ```bash
-cd frontend
+cd ..
 ```
+
+Entre na pasta do front-end:
+
+```bash
+cd FRONT-END
+```
+
+---
 
 ### **Passo 1: Verificar NPM**
 
@@ -123,11 +137,11 @@ cd frontend
 npm --version
 ```
 
-Se der erro → instale o Node.js conforme mostrado acima.
+Se der erro → instale o Node.js conforme mostrado nos pré-requisitos.
 
 ---
 
-### **Passo 2: Instalar Dependências do Front**
+### **Passo 2: Instalar Dependências**
 
 ```bash
 npm install
@@ -141,7 +155,7 @@ npm install
 npm run dev
 ```
 
-Normalmente ficará acessível em:
+Geralmente disponível em:
 
 ```
 http://localhost:5173
@@ -155,5 +169,3 @@ Após seguir os passos:
 
 * **Back-end:** [http://127.0.0.1:8000](http://127.0.0.1:8000)
 * **Front-end:** [http://localhost:5173](http://localhost:5173)
-
-É só pedir!
